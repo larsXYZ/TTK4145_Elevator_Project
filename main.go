@@ -31,6 +31,8 @@ func main(){
             
         case a := <- drv_floors:
             fmt.Printf("%+v\n", a)
+			elevio.SetButtonLamp(0, a, false)
+
             if a == numFloors-1 {
                 d = elevio.MD_Down
             } else if a == 0 {
@@ -48,7 +50,12 @@ func main(){
             }
             
         case a := <- drv_stop:
-            fmt.Printf("%+v\n", a)
+            fmt.Printf("EMERGENCY STOP\n")
+            if a {
+                elevio.SetMotorDirection(elevio.MD_Stop)
+            } else {
+                elevio.SetMotorDirection(d)
+            }
             for f := 0; f < numFloors; f++ {
                 for b := elevio.ButtonType(0); b < 3; b++ {
                     elevio.SetButtonLamp(b, f, false)
