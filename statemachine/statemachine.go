@@ -7,6 +7,7 @@ import "fmt"
 var current_floor int = -1
 var current_target int = -1
 var current_direction elevio.MotorDirection = elevio.MD_Up
+var is_primary bool = false;
 
 //=======Functions=======
 
