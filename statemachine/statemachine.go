@@ -11,13 +11,10 @@ var current_direction elevio.MotorDirection = elevio.MD_Up
 //=======Functions=======
 
 //Initializes the statemachine
-func Init(){
+func Init(floor_sensors_channel chan int){
 
   //Print info
   fmt.Printf("elevator initialization started\n")
-
-  //Channels
-  floor_sensors_channel  := make(chan int)
 
   //Connect to elevator
   elevio.Init("localhost:15657", 4)
@@ -34,13 +31,13 @@ func Init(){
 }
 
 //Determines current floor at startup
-func init_floor_finder(c chan int){
+func init_floor_finder(floor_sensors_channel chan int){
 
   elevio.SetMotorDirection(current_direction)
 
   //Wait until we hit a floor
   select{
-  case floor := <-c:
+  case floor := <-floor_sensors_channel:
     current_floor = floor
   }
 
