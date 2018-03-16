@@ -18,6 +18,10 @@ import (
 //=======States==========
 var is_master = false
 var id = ""
+var localIp = ""
+var peers_port = 0
+
+//var bcast_port = peers_port + 1
 
 //=======Functions=======
 
@@ -29,7 +33,7 @@ func Run(state_elev_channel chan d.State_elev_message, port int) {
 	//bcast_port := port + 1
 
 	//Determine ip & id
-	localIp, _ := localip.LocalIP()
+	localIp, _ = localip.LocalIP()
 	id = fmt.Sprintf("%s%d", localIp[12:], os.Getpid())
 
 	//Channels for determining peers
