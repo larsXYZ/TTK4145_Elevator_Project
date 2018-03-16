@@ -6,30 +6,23 @@ package main
 
 import (
 	d "./datatypes"
-	"./network"
-	"./statemachine"
-	//"time"
+	ns "./network_statemachine"
 	"flag"
-	//	"fmt"
-	//	"os"
 )
 
 func main() {
 
 	//Determines port number
-	var port int
-	flag.IntVar(&port, "port", 15000, "portnumber")
+	portPtr := flag.Int("port", 15000, "an int")
+	flag.Parse()
 
 	//Initializes channels
-	state_elev_channel := make(chan d.State_elev_message)
-	state_network_channel := make(chan d.State_network_message)
+	netstate_elevstate_channel := make(chan d.State_elev_message)
 
-	//Runs statemachine
-	go statemachine.Init(state_elev_channel)
+	//Runs network statemachine
+	go ns.Run(netstate_elevstate_channel, *portPtr)
 
-	//Runs network module
-	go network.Init(state_network_channel, port)
-
+	//Waits
 	select {}
 
 }

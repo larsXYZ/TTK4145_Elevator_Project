@@ -4,19 +4,26 @@ package datatypes
 //--------------- VARIOUS DATATYPES USED IN THE PROJECT---------------
 //--------------------------------------------------------------------
 
-type Heartbeat struct { //Used for notifying the other elevators that master is alive
-	Id string
-	Ip string
+type State_network_message struct { //Used to communicate between statemachine and network
+	Port int
+	Id   string
+}
+
+type Button_matrix struct { //Used to keep track of which buttons are pressed
+	Up   [4]bool
+	Down [4]bool
+	Cab  [4]bool
 }
 
 type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
-	NewFloor       uint
-	ArrivedAtFloor bool
-	NewOrder       uint
+	button_matrix_update Button_matrix
 }
 
-type State_network_message struct { //Used to communicate between statemachine and elevator_interface
-	NewFloor       uint
-	ArrivedAtFloor bool
-	NewOrder       uint
+func Button_matrix_init() Button_matrix { //Initializes a button matrix object
+	m := Button_matrix{}
+	m.Up = [4]bool{false, false, false, false}
+	m.Down = [4]bool{false, false, false, false}
+	m.Cab = [4]bool{false, false, false, false}
+
+	return m
 }
