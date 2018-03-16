@@ -1,71 +1,35 @@
 package main
 
-import(
-  "./statemachine"
-  //"./network/bcast"
-  "./network/localip"
-  "./network/peers"
-  //"time"
-  "fmt"
-  "os"
-  "flag"
+//------------------------------------------------------------------------------------
+//--------------- Starts all the other processes in the elevator system---------------
+//------------------------------------------------------------------------------------
+
+import (
+	d "./datatypes"
+	"./network"
+	"./statemachine"
+	//"time"
+	"flag"
+	//	"fmt"
+	//	"os"
 )
 
-type heartbeat struct{
-  Id string
-  Ip string
-}
+func main() {
 
-func main(){
+	//Determines port number
+	var port int
+	flag.IntVar(&port, "port", 15000, "portnumber")
 
-  //Determines port number
-  var port int
-  flag.IntVar(&port,"port",15000,"portnumber")
-  flag.Parse()
+	//Initializes channels
+	state_elev_channel := make(chan d.State_elev_message)
+	state_network_channel := make(chan d.State_network_message)
 
-  //Initializes channels
-  floor_sensors_channel := make(chan int)
-  //heartbeat_tx_channel  := make(chan heartbeat)
-  //heartbeat_rx_channel  := make(chan heartbeat)
-  peers_tx_channel      := make(chan bool)
-  peers_rx_channel      := make(chan peers.PeerUpdate)
+	//Runs statemachine
+	go statemachine.Init(state_elev_channel)
 
-  //Finds ip & id
-  localIp, _ := localip.LocalIP()
-  var id string = fmt.Sprintf("%s - %d",localIp, os.Getpid())
+	//Runs network module
+	go network.Init(state_network_channel, port)
 
-  //Runs statemachine
-  go statemachine.Init(floor_sensors_channel)
-
-  //Start peer system
-  go peers.Transmitter(port, id, peers_tx_channel)
-  go peers.Receiver(port, peers_rx_channel)
-
-  //Spam broadcast
-  /*go bcast.Transmitter(15647, heartbeat_tx_channel)
-  go bcast.Receiver(15647, heartbeat_rx_channel)
-  go func() {
-		message_tx := heartbeat{Id: id, Ip: localIp}
-		for {
-			heartbeat_tx_channel <- message_tx
-			time.Sleep(2 * time.Second)
-		}
-	}()*/
-
-
-
-  //Look at pipes
-  for{
-    select{
-    /*case message_rx := <-heartbeat_rx_channel:
-      if (message_rx.Id != id){
-        fmt.Println(message_rx)
-      }*/
-
-    case p := <-peers_rx_channel:
-      fmt.Printf("  Peers:    %q\n", p.Peers)
-
-    }
-  }
+	select {}
 
 }
