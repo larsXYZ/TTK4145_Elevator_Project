@@ -9,7 +9,7 @@ import (
 	d "./../datatypes"
 	"./../network_go/localip"
 	"./../network_go/peers"
-	//u "./../utilities"
+	u "./../utilities"
 	"fmt"
 	"os"
 	"time"
@@ -34,7 +34,7 @@ func Run(state_elev_channel chan d.State_elev_message, port int) {
 
 	//Determine ip & id
 	localIp, _ = localip.LocalIP()
-	id = fmt.Sprintf("%s%d", localIp[12:], os.Getpid())
+	id = fmt.Sprintf("%s%d", u.IpToString(localIp), os.Getpid())
 
 	//Channels for determining peers
 	peers_tx_channel := make(chan bool)
