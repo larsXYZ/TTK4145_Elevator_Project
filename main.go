@@ -7,7 +7,7 @@ package main
 import (
 	d "./datatypes"
 	"./network_statemachine"
-	"./sync_module"
+	//"./sync_module"
 	"flag"
 )
 
@@ -22,7 +22,7 @@ func main() {
 	netstate_sync_channel				:= make(chan d.State_sync_message)
 
 	//Runs sync module
-	go sync.Run(netstate_sync_channel)
+	//go sync.Run(netstate_sync_channel)
 
 	//Runs network statemachine
 	go network_statemachine.Run(netstate_elevstate_channel, netstate_sync_channel, *portPtr)
@@ -30,5 +30,4 @@ func main() {
 
 	//Waits
 	select {}
-
 }
