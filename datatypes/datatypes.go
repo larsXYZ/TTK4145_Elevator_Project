@@ -4,9 +4,9 @@ package datatypes
 //--------------- VARIOUS DATATYPES USED IN THE PROJECT---------------
 //--------------------------------------------------------------------
 
-type State_network_message struct { //Used to communicate between statemachine and network
-	Port int
-	Id   string
+type State_sync_message struct { //Used to communicate between statemachine and sync module
+	SendGreeting bool //Tells sync module to search for other elevators
+	GreetingResponse bool //Gives response from search for other elevators
 }
 
 type Button_matrix struct { //Used to keep track of which buttons are pressed
@@ -18,6 +18,14 @@ type Button_matrix struct { //Used to keep track of which buttons are pressed
 type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
 	button_matrix_update Button_matrix
 }
+
+type Network_message struct { //Used to communicate between elevators on network
+	Greeting bool
+	Greeting_response bool
+}
+
+
+//===DATATYPE CONSTRUCTORS===
 
 func Button_matrix_init() Button_matrix { //Initializes a button matrix object
 	m := Button_matrix{}

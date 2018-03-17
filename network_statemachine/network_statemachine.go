@@ -12,7 +12,7 @@ import (
 	u "./../utilities"
 	"fmt"
 	"os"
-	"time"
+
 )
 
 //=======States==========
@@ -26,11 +26,10 @@ var peers_port = 0
 //=======Functions=======
 
 //Runs statemachine logic
-func Run(state_elev_channel chan d.State_elev_message, port int) {
+func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, port int) {
 
 	//Set up portnumbers
 	peers_port := port
-	//bcast_port := port + 1
 
 	//Determine ip & id
 	localIp, _ = localip.LocalIP()
@@ -44,21 +43,22 @@ func Run(state_elev_channel chan d.State_elev_message, port int) {
 	go peers.Receiver(peers_port, peers_rx_channel)
 	go peers.Transmitter(peers_port, id, peers_tx_channel)
 
+	//Check if we are alone
+	state_sync_channel <- d.State_sync_message{true,false}
+	presence_check_result := (<-state_sync_channel).GreetingResponse
+	if (presence_check_result){ //Check result
+		fmt.Println("|||Active elevators found\n")
+		removeMasterState()
+	} else{
+		fmt.Println("|||No elevators found\n")
+		enableMasterState()
+	}
+
 	for {
 		select {
 
 		case p := <-peers_rx_channel: //Check the other elevators on the system
 			fmt.Printf("  Peers:    %q\n", p.Peers)
-
-			if len(p.Peers) == 1 { //If we are only elevator we become master
-				time.Sleep(time.Second)
-				select {
-				case <-peers_rx_channel:
-					continue
-				default:
-					enableMasterState()
-				}
-			}
 
 		}
 	}

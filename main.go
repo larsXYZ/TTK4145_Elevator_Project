@@ -6,7 +6,8 @@ package main
 
 import (
 	d "./datatypes"
-	ns "./network_statemachine"
+	"./network_statemachine"
+	"./sync_module"
 	"flag"
 )
 
@@ -17,10 +18,15 @@ func main() {
 	flag.Parse()
 
 	//Initializes channels
-	netstate_elevstate_channel := make(chan d.State_elev_message)
+	netstate_elevstate_channel 	:= make(chan d.State_elev_message)
+	netstate_sync_channel				:= make(chan d.State_sync_message)
+
+	//Runs sync module
+	go sync.Run(netstate_sync_channel)
 
 	//Runs network statemachine
-	go ns.Run(netstate_elevstate_channel, *portPtr)
+	go network_statemachine.Run(netstate_elevstate_channel, netstate_sync_channel, *portPtr)
+
 
 	//Waits
 	select {}
