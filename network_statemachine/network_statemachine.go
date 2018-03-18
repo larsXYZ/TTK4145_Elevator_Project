@@ -96,12 +96,17 @@ func determine_new_master(pu peers.PeerUpdate){
 
 	if (id_lowest == u.StrToInt(id)){ //If this elevator has lowest id, we become master
 		fmt.Printf("This is elevator with lowest id, (our id: %s)\n",id)
-		enableMasterState()
+		if (!is_master){
+			enableMasterState()
+		} else{
+			fmt.Println("Already master, no change necessarry, still MASTER")
+		}
+
 	} else if is_master{ //If we are master we remove this status, since an other master has arrived
 		fmt.Printf("This elevator does not have lowest id anymore, (our id: %s, other id: %d)\n",id, id_lowest)
 		removeMasterState()
 	} else{ //Do nothing
-		fmt.Println("Elevator network change detected, no change necessary")
+		fmt.Println("Elevator network change detected, no change necessary, still SLAVE")
 	}
 
 
