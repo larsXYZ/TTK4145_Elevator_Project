@@ -8,7 +8,6 @@ import(
   "./../network_go/bcast"
   d "./../datatypes"
   "fmt"
-  //"time"
 )
 
 //States
@@ -32,9 +31,9 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
     select{
 
     //Responds to Network_message
-  case message := <-sync_rx_chn:
-      if message.Sender != id{
-        network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, message)
+  case sync_message := <-sync_rx_chn:
+      if sync_message.Sender != id{ //Ignores messages sent by ourself
+        network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, sync_message)
       }
 
     case command := <-state_sync_channel:
@@ -59,7 +58,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
 
 //Handles received network messages
 func network_sync_handler(tx_chn chan d.Network_sync_message, rx_chn chan d.Network_sync_message, state_sync_channel chan d.State_sync_message, m d.Network_sync_message){
-  fmt.Println("Sync module: Sync message received")
+  state_sync_channel <- d.State_sync_message{true, m.Test_state}
 }
 
 //Handles commands from network statemachine

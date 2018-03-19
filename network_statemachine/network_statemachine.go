@@ -42,7 +42,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 	go peers.Transmitter(port, id, peers_tx_channel)
 
 	//Customizes test state variable
-	sync_state = d.State{"TEST SYNC STATE VARIABLE " + id}
+	sync_state = d.State{"VAR " + id}
 
 	//Starts timer
 	timer_chan := make(chan bool)
@@ -66,7 +66,8 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
-			if message.SyncState{
+			if (message.SyncState && sync_state != message.Test_state){ //Updates state variable
+				fmt.Printf("State variable updated, was %s is now %s", sync_state, message.Test_state)
 				sync_state = message.Test_state
 			}
 
