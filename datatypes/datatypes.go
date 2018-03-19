@@ -5,8 +5,18 @@ package datatypes
 //--------------------------------------------------------------------
 
 type State_sync_message struct { //Used to communicate between statemachine and sync module
-	SyncState bool //If this is true sync module should sync following statevariable
-	State string //State variable to be synced
+	SyncState bool //If this is true the state variable is to be synchronized
+	Test_state State //State variable to be synced
+}
+
+type Network_sync_message struct { //Used to Sync states between elevators
+	Test_state State //State variable to be synced
+	SyncAck bool
+	Sender string //ID of sender
+}
+
+type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
+	button_matrix_update Button_matrix
 }
 
 type Button_matrix struct { //Used to keep track of which buttons are pressed
@@ -15,15 +25,9 @@ type Button_matrix struct { //Used to keep track of which buttons are pressed
 	Cab  [4]bool
 }
 
-type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
-	button_matrix_update Button_matrix
+type State struct { //The state struct to be synchronized
+	Word string
 }
-
-type Network_message struct { //Used to communicate between elevators on network
-	Greeting bool
-	Greeting_response bool
-}
-
 
 //===DATATYPE CONSTRUCTORS===
 

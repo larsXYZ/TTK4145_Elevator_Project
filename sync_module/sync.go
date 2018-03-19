@@ -11,92 +11,58 @@ import(
   //"time"
 )
 
+//States
+var id = ""
+
 //Runs the sync module
-func Run(state_sync_channel chan d.State_sync_message){
+func Run(state_sync_channel chan d.State_sync_message, id_in string){
+
+  id = id_in
 
   //Set up Channels
-  rx_chn := make(chan d.Network_message,1)
-  tx_chn := make(chan d.Network_message,1)
+  sync_tx_chn := make(chan d.Network_sync_message,1)
+  sync_rx_chn := make(chan d.Network_sync_message,1)
 
   //Activate bcast library functions
-  go bcast.Transmitter(16569, tx_chn)
-  go bcast.Receiver(16569, rx_chn)
+  go bcast.Transmitter(16569, sync_tx_chn)
+  go bcast.Receiver(16569, sync_rx_chn)
 
   fmt.Println("Sync module: Listening started")
   for{ //Handles messages over network and commands from network statemachine
     select{
 
     //Responds to Network_message
-    case message := <-rx_chn:
-      fmt.Println("Sync module: Message Received from Network")
-      network_message_handler(tx_chn, rx_chn, state_sync_channel, message)
+  case message := <-sync_rx_chn:
+      if message.Sender != id{
+        network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, message)
+      }
 
     case command := <-state_sync_channel:
       fmt.Println("Sync module: Command Received from NetworkStatemachine")
-      command_handler(tx_chn, rx_chn, state_sync_channel, command)
+      command_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, command)
     }
   }
 
 }
-/*
-//Detects if helicopter is alone on network by sending numerous UDP messages
-func presence_check(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message){
 
-  fmt.Println("Presence check started")
+//Synchronizes state with other elevators on network
+func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Network_sync_message, state d.State){
 
-  //Send UDP greeting message and listen for response
-  for i := 0; i < 5; i++{
+  //Creates Network_sync_message
+  sync_message := d.Network_sync_message{state, false, id}
 
-    //Sends greeting message
-    fmt.Printf("    ...%d",i)
-    tx_chn <- d.Network_message{true,false}
-
-    //Creating timeout channel and function
-    timer := time.NewTimer(time.Millisecond * 100)
-
-    //Listens for response
-    for{
-      norespone := false
-
-      select{
-      case <- timer.C:{ //Break if we timout
-        fmt.Printf(".. No response\n")
-        norespone = true
-      }
-
-      case message := <-rx_chn:{ //Handle received greeting message
-        if message.Greeting_response{
-          fmt.Printf(".. Response received\n")
-          fmt.Println("Presence check ended")
-          state_sync_channel<-d.State_sync_message{false,true} //We have gotten response
-          return
-        } else{ //If the message received was not greeting response, we continue waiting. This filters out our own message sent earlier.
-          continue
-        }
-      }
-      }
-      if norespone{break} //Breaks if we receive no response
-    }
-
-    timer.Stop()
+  //Broadcasts state 10 times for now
+  for i := 0; i < 10; i++{
+    sync_tx_chn <- sync_message
   }
-
-  fmt.Println("\nPresence check ended")
-  state_sync_channel<-d.State_sync_message{false,false} //We have gotten response
-
 }
-*/
+
 //Handles received network messages
-func network_message_handler(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message, m d.Network_message){
-
-  if m.Greeting{ //If it is greeting message, respond
-    fmt.Println("Greeting received, responding..")
-    tx_chn <- d.Network_message{false,true}
-  }
+func network_sync_handler(tx_chn chan d.Network_sync_message, rx_chn chan d.Network_sync_message, state_sync_channel chan d.State_sync_message, m d.Network_sync_message){
+  fmt.Println("Sync module: Sync message received")
 }
 
 //Handles commands from network statemachine
-func command_handler(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message, c d.State_sync_message){
-
-
+func command_handler(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Network_sync_message, state_sync_channel chan d.State_sync_message, ms d.State_sync_message){
+  sync_state(sync_tx_chn, sync_rx_chn, ms.Test_state)
 }

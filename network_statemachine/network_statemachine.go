@@ -7,11 +7,10 @@ package network_statemachine
 //Import packages
 import (
 	d "./../datatypes"
-	"./../network_go/localip"
+	"./../timer"
 	"./../network_go/peers"
 	u "./../utilities"
 	"fmt"
-	"os"
 
 )
 
@@ -22,32 +21,33 @@ var id = ""
 var localIp = ""
 var peers_port = 0
 
-var sync_state = "TEST SYNC STATE VARIABLE "
+var sync_state = d.State{""}
+
 
 //var bcast_port = peers_port + 1
 
 //=======Functions=======
 
 //Runs statemachine logic
-func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, port int) {
+func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, port int, id_in string) {
 
-	//Set up portnumbers
-	peers_port := port
-
-	//Determine ip & id
-	localIp, _ = localip.LocalIP()
-	id = fmt.Sprintf("%s%d", u.IpToString(localIp), os.Getpid())
+	id = id_in
 
 	//Channels for determining peers
 	peers_tx_channel := make(chan bool)
 	peers_rx_channel := make(chan peers.PeerUpdate)
 
 	//Start peer system
-	go peers.Receiver(peers_port, peers_rx_channel)
-	go peers.Transmitter(peers_port, id, peers_tx_channel)
+	go peers.Receiver(port, peers_rx_channel)
+	go peers.Transmitter(port, id, peers_tx_channel)
 
 	//Customizes test state variable
-	sync_state += id
+	sync_state = d.State{"TEST SYNC STATE VARIABLE " + id}
+
+	//Starts timer
+	timer_chan := make(chan bool)
+	go timer.Run(timer_chan)
+
 
 	//Start regular operation
 	for {
@@ -55,28 +55,52 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
 			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
-			reevaluate_master_state(pu)
+			reevaluate_master_state(pu,timer_chan)
 			fmt.Printf("MASTER STATE: %t\n", is_master)
 
+		case <- timer_chan: //Synchronizes state if master
+			fmt.Println("\nTEST SYNC VARIABLE: " + sync_state.Word)
+			if is_master{
+				fmt.Printf("SYNCS STATE\n")
+				state_sync_channel <- d.State_sync_message{true, sync_state}
+			}
+
+		case message := <- state_sync_channel: //Receives update from sync module
+			if message.SyncState{
+				sync_state = message.Test_state
+			}
+
+
+
 		}
+
+
+
+
 	}
 }
 
 //Enables master state
-func enableMasterState() {
+func enableMasterState(timer_chan chan bool) {
 	is_master = true
 	current_master_id = id
+
+	timer_chan<-true //Activate timer
+
 	fmt.Println("Enables master state")
 }
 
 //Enables master state
-func removeMasterState() {
+func removeMasterState(timer_chan chan bool) {
 	is_master = false
+
+	timer_chan<-false //Deactivate timer
+
 	fmt.Println("Removes master state")
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
-func determine_master(pu peers.PeerUpdate){
+func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool){
 
 	id_lowest := 999999999999999999 //Determines lowest id -> master
 	for i := 0; i < len(pu.Peers); i++{
@@ -85,35 +109,22 @@ func determine_master(pu peers.PeerUpdate){
 		}
 	}
 
-	current_master_id = fmt.Sprintf("%d",id_lowest) //Returns master_id
-
-}
-
-//Reevaluates master state from Peers update
-func reevaluate_master_state(pu peers.PeerUpdate){
-
-	if len(pu.Peers) == 1{ //If we are only elevator on network we become master
-		fmt.Println("No other elevators")
-		enableMasterState()
-		return
-	}
-
-	determine_master(pu) //Determines current master
-
-	if (current_master_id == id){ //If this elevator has lowest id, we become master
+	if (id_lowest == u.StrToInt(id)){ //If this elevator has lowest id, we become master
 		fmt.Printf("This is elevator with lowest id, (our id: %s)\n",id)
 		if (!is_master){
-			enableMasterState()
+			enableMasterState(timer_chan)
 		} else{
 			fmt.Println("Already master, no change necessarry, still MASTER")
 		}
 
 	} else if is_master{ //If we are master we remove this status, since an other master has arrived
 		fmt.Printf("This elevator does not have lowest id anymore, (our id: %s, other id: %s)\n",id, current_master_id)
-		removeMasterState()
+		current_master_id = fmt.Sprintf("%d",id_lowest) //Changes master ID
+		removeMasterState(timer_chan)
 	} else{ //Do nothing
 		fmt.Println("Elevator network change detected, no change necessary, still SLAVE")
 	}
+
 
 
 }
