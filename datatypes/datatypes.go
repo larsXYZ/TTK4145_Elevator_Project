@@ -5,8 +5,8 @@ package datatypes
 //--------------------------------------------------------------------
 
 type State_sync_message struct { //Used to communicate between statemachine and sync module
-	SendGreeting bool //Tells sync module to search for other elevators
-	GreetingResponse bool //Gives response from search for other elevators
+	SyncState bool //If this is true sync module should sync following statevariable
+	State string //State variable to be synced
 }
 
 type Button_matrix struct { //Used to keep track of which buttons are pressed

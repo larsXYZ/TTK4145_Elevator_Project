@@ -8,7 +8,7 @@ import(
   "./../network_go/bcast"
   d "./../datatypes"
   "fmt"
-  "time"
+  //"time"
 )
 
 //Runs the sync module
@@ -38,8 +38,9 @@ func Run(state_sync_channel chan d.State_sync_message){
   }
 
 }
-
-func presence_check(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message){ //Detects if helicopter is alone on network by sending numerous UDP messages
+/*
+//Detects if helicopter is alone on network by sending numerous UDP messages
+func presence_check(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message){
 
   fmt.Println("Presence check started")
 
@@ -84,7 +85,7 @@ func presence_check(tx_chn chan d.Network_message, rx_chn chan d.Network_message
   state_sync_channel<-d.State_sync_message{false,false} //We have gotten response
 
 }
-
+*/
 //Handles received network messages
 func network_message_handler(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message, m d.Network_message){
 
@@ -96,10 +97,6 @@ func network_message_handler(tx_chn chan d.Network_message, rx_chn chan d.Networ
 
 //Handles commands from network statemachine
 func command_handler(tx_chn chan d.Network_message, rx_chn chan d.Network_message, state_sync_channel chan d.State_sync_message, c d.State_sync_message){
-
-  if c.SendGreeting{ //Search for other elevators
-    presence_check(tx_chn,rx_chn, state_sync_channel)
-  }
 
 
 }

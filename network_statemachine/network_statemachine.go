@@ -17,9 +17,12 @@ import (
 
 //=======States==========
 var is_master = false
+var current_master_id = ""
 var id = ""
 var localIp = ""
 var peers_port = 0
+
+var sync_state = "TEST SYNC STATE VARIABLE "
 
 //var bcast_port = peers_port + 1
 
@@ -42,25 +45,18 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 	//Start peer system
 	go peers.Receiver(peers_port, peers_rx_channel)
 	go peers.Transmitter(peers_port, id, peers_tx_channel)
-	/*
-	//Check if we are alone
-	state_sync_channel <- d.State_sync_message{true,false}
-	presence_check_result := (<-state_sync_channel).GreetingResponse
-	if (presence_check_result){ //Check result
-		fmt.Println("|||Active elevators found\n")
-		removeMasterState()
-	} else{
-		fmt.Println("|||No elevators found\n")
-		enableMasterState()
-	}
-	*/
+
+	//Customizes test state variable
+	sync_state += id
+
 	//Start regular operation
 	for {
 		select {
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
-			fmt.Printf("  Elevators in system: %q\n", pu.Peers) //Print all current elevators
-			determine_new_master(pu)
+			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
+			reevaluate_master_state(pu)
+			fmt.Printf("MASTER STATE: %t\n", is_master)
 
 		}
 	}
@@ -69,6 +65,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 //Enables master state
 func enableMasterState() {
 	is_master = true
+	current_master_id = id
 	fmt.Println("Enables master state")
 }
 
@@ -78,14 +75,8 @@ func removeMasterState() {
 	fmt.Println("Removes master state")
 }
 
-//Determines current master from peerupdate, aka elevator with lowest id
-func determine_new_master(pu peers.PeerUpdate){
-
-	if len(pu.Peers) == 1{ //If we are only elevator on network we become master
-		fmt.Println("No other elevators")
-		enableMasterState()
-		return
-	}
+//Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
+func determine_master(pu peers.PeerUpdate){
 
 	id_lowest := 999999999999999999 //Determines lowest id -> master
 	for i := 0; i < len(pu.Peers); i++{
@@ -94,7 +85,22 @@ func determine_new_master(pu peers.PeerUpdate){
 		}
 	}
 
-	if (id_lowest == u.StrToInt(id)){ //If this elevator has lowest id, we become master
+	current_master_id = fmt.Sprintf("%d",id_lowest) //Returns master_id
+
+}
+
+//Reevaluates master state from Peers update
+func reevaluate_master_state(pu peers.PeerUpdate){
+
+	if len(pu.Peers) == 1{ //If we are only elevator on network we become master
+		fmt.Println("No other elevators")
+		enableMasterState()
+		return
+	}
+
+	determine_master(pu) //Determines current master
+
+	if (current_master_id == id){ //If this elevator has lowest id, we become master
 		fmt.Printf("This is elevator with lowest id, (our id: %s)\n",id)
 		if (!is_master){
 			enableMasterState()
@@ -103,7 +109,7 @@ func determine_new_master(pu peers.PeerUpdate){
 		}
 
 	} else if is_master{ //If we are master we remove this status, since an other master has arrived
-		fmt.Printf("This elevator does not have lowest id anymore, (our id: %s, other id: %d)\n",id, id_lowest)
+		fmt.Printf("This elevator does not have lowest id anymore, (our id: %s, other id: %s)\n",id, current_master_id)
 		removeMasterState()
 	} else{ //Do nothing
 		fmt.Println("Elevator network change detected, no change necessary, still SLAVE")
