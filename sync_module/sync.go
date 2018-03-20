@@ -8,6 +8,7 @@ import(
   "./../network_go/bcast"
   d "./../datatypes"
   "fmt"
+  "time"
 )
 
 //States
@@ -61,6 +62,9 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
     //Array to keep track of elevators which have ACK-ed
     ack_elevators := make([]string,0)
 
+    //Setting up timout signal
+    timeOUT := time.NewTimer(time.Millisecond * 200)
+
     sync_tx_chn <- sync_message //Broadcast state
     for{
       select{
@@ -75,6 +79,11 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
           fmt.Printf("Sync completed, all %d elevators ACK\n", command.Connected_count-1)
           return
         }
+
+      case <-timeOUT.C: //If we do not get response withing a timelimit we resend
+        fmt.Println("SYNC TIMEOUT, resending...")
+        break;
+
 
       }
     }

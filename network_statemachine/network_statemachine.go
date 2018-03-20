@@ -58,7 +58,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			reevaluate_master_state(pu,timer_chan)
 			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
-			fmt.Printf("MASTER STATE: %t\n", is_master)
+			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
 		case <- timer_chan: //Synchronizes state if master
 			fmt.Println("\nTEST SYNC VARIABLE: " + sync_state.Word)
