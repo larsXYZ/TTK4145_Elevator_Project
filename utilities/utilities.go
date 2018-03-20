@@ -28,3 +28,13 @@ func IpToString(s string) string { //Removes . from ip, allowing it to be used a
 
 	return new_string
 }
+
+//Checks if array contains id
+func IdInArray(a string, list []string) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
+}

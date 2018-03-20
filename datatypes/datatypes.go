@@ -39,3 +39,7 @@ func Button_matrix_init() Button_matrix { //Initializes a button matrix object
 
 	return m
 }
+
+func State_init() State{ //Creates empty State variable
+	return State{""}
+}

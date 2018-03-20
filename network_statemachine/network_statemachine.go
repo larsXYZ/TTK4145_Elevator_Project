@@ -43,7 +43,8 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 	go peers.Transmitter(port, id, peers_tx_channel)
 
 	//Customizes test state variable
-	sync_state = d.State{"VAR " + id}
+	sync_state = d.State_init()
+	sync_state.Word = "VAR: " + id
 
 	//Starts timer
 	timer_chan := make(chan bool)
@@ -55,16 +56,19 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 		select {
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
-			reevaluate_master_state(pu,timer_chan)
+			reevaluate_master_state(pu,timer_chan) //Redetermine MASTER
+			if is_master{
+				state_sync_channel <- d.State_sync_message{sync_state,connected_elevator_count}//Inform sync module
+			}
 			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
 		case <- timer_chan: //Synchronizes state if master
-			fmt.Println("\nTEST SYNC VARIABLE: " + sync_state.Word)
+			fmt.Printf("TEST SYNC VARIABLE: " + sync_state.Word)
 			if is_master{
-				fmt.Printf("SYNCS STATE\n")
 				state_sync_channel <- d.State_sync_message{sync_state, connected_elevator_count}
+				fmt.Println("")
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
