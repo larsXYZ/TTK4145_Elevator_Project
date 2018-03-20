@@ -20,6 +20,7 @@ var current_master_id = ""
 var id = ""
 var localIp = ""
 var peers_port = 0
+var connected_elevator_count = 1
 
 var sync_state = d.State{""}
 
@@ -54,21 +55,22 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 		select {
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
-			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
 			reevaluate_master_state(pu,timer_chan)
+			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
+			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n", is_master)
 
 		case <- timer_chan: //Synchronizes state if master
 			fmt.Println("\nTEST SYNC VARIABLE: " + sync_state.Word)
 			if is_master{
 				fmt.Printf("SYNCS STATE\n")
-				state_sync_channel <- d.State_sync_message{true, sync_state}
+				state_sync_channel <- d.State_sync_message{sync_state, connected_elevator_count}
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
-			if (message.SyncState && sync_state != message.Test_state){ //Updates state variable
-				fmt.Printf("State variable updated, was %s is now %s", sync_state, message.Test_state)
-				sync_state = message.Test_state
+			if (sync_state != message.SyncState){ //Updates state variable
+				fmt.Printf("State variable updated, was %s is now %s", sync_state, message.SyncState)
+				sync_state = message.SyncState
 			}
 
 
@@ -103,6 +105,10 @@ func removeMasterState(timer_chan chan bool) {
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
 func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool){
 
+	update_connected_count(pu) //Updates connected elevator count
+
+
+
 	id_lowest := 999999999999999999 //Determines lowest id -> master
 	for i := 0; i < len(pu.Peers); i++{
 		if (id_lowest >= u.StrToInt(pu.Peers[i])){
@@ -128,4 +134,8 @@ func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool){
 
 
 
+}
+
+func update_connected_count	(pu peers.PeerUpdate){ //Updates connected elevator counter
+	connected_elevator_count = len(pu.Peers)
 }

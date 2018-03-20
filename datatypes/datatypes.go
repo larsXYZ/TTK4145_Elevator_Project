@@ -5,12 +5,12 @@ package datatypes
 //--------------------------------------------------------------------
 
 type State_sync_message struct { //Used to communicate between statemachine and sync module
-	SyncState bool //If this is true the state variable is to be synchronized
-	Test_state State //State variable to be synced
+	SyncState State //State variable to be synced
+	Connected_count int //Number of connected elevators, important to make sure all elevators has been synchronized
 }
 
 type Network_sync_message struct { //Used to Sync states between elevators
-	Test_state State //State variable to be synced
+	SyncState State //State variable to be synced
 	SyncAck bool
 	Sender string //ID of sender
 }

@@ -24,6 +24,7 @@ func main() {
 	//Determine ip & id
 	localIp, _ := localip.LocalIP()
 	id := fmt.Sprintf("%s%d", u.IpToString(localIp), os.Getpid())
+	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
 	netstate_elevstate_channel 	:= make(chan d.State_elev_message)
