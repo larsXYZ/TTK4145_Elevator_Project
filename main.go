@@ -13,6 +13,7 @@ import (
 	"os"
 	"fmt"
 	u "./utilities"
+	"./elevator_interface"
 )
 
 func main() {
@@ -29,6 +30,11 @@ func main() {
 	//Initializes channels
 	netstate_elevstate_channel 	:= make(chan d.State_elev_message)
 	netstate_sync_channel				:= make(chan d.State_sync_message)
+	state_elev_channel 					:= make(chan d.State_elev_message)
+
+
+	//Runs interface module
+	go elevator_interface.Run(state_elev_channel)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)

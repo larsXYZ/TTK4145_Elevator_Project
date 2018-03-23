@@ -16,7 +16,7 @@ type Network_sync_message struct { //Used to Sync states between elevators
 }
 
 type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
-	button_matrix_update Button_matrix
+	Button_matrix Button_matrix
 }
 
 type Button_matrix struct { //Used to keep track of which buttons are pressed
