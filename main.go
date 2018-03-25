@@ -13,7 +13,8 @@ import (
 	"os"
 	"fmt"
 	u "./utilities"
-	"./elevator_interface"
+	"./elevator_statemachine"
+	"./network_order_handler"
 )
 
 func main() {
@@ -30,17 +31,20 @@ func main() {
 	//Initializes channels
 	netstate_elevstate_channel 	:= make(chan d.State_elev_message)
 	netstate_sync_channel				:= make(chan d.State_sync_message)
-	state_elev_channel 					:= make(chan d.State_elev_message)
+	netstate_elev_channel 			:= make(chan d.State_elev_message)
+	netstate_order_channel			:= make(chan d.State_order_message)
 
+	//Run order handler module
+	go network_order_handler.Run(netstate_order_channel, id)
 
 	//Runs interface module
-	go elevator_interface.Run(state_elev_channel)
+	go elevator_statemachine.Run(netstate_elev_channel)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)
 
 	//Runs network statemachine
-	go network_statemachine.Run(netstate_elevstate_channel, netstate_sync_channel, *portPtr, id)
+	go network_statemachine.Run(netstate_elevstate_channel, netstate_sync_channel, netstate_order_channel, *portPtr, id)
 
 
 	//Waits

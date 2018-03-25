@@ -30,7 +30,7 @@ var sync_state = d.State{""}
 //=======Functions=======
 
 //Runs statemachine logic
-func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, port int, id_in string) {
+func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, State_order_channel chan d.State_order_message , port int, id_in string) {
 
 	id = id_in
 
@@ -64,11 +64,9 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
-		case <- timer_chan: //Synchronizes state if master
-			fmt.Printf("TEST SYNC VARIABLE: " + sync_state.Word)
+		case <- timer_chan: //Tests sending order
 			if is_master{
-				state_sync_channel <- d.State_sync_message{sync_state, connected_elevator_count}
-				fmt.Println("")
+				State_order_channel <- d.State_order_message{d.Order_struct{},"test_id"}
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module

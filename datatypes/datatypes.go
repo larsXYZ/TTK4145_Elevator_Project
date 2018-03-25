@@ -4,10 +4,23 @@ package datatypes
 //--------------- VARIOUS DATATYPES USED IN THE PROJECT---------------
 //--------------------------------------------------------------------
 
+//---------Channel types---------
+
 type State_sync_message struct { //Used to communicate between statemachine and sync module
 	SyncState State //State variable to be synced
 	Connected_count int //Number of connected elevators, important to make sure all elevators has been synchronized
 }
+
+type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
+	Button_matrix Button_matrix
+}
+
+type State_order_message struct { //Used to communicate between net-statemachine and order_handler
+	Order Order_struct 	//The order sent
+	Id_slave string			//The id of the slave to execute order
+}
+
+//---------Network types--------
 
 type Network_sync_message struct { //Used to Sync states between elevators
 	SyncState State //State variable to be synced
@@ -15,9 +28,13 @@ type Network_sync_message struct { //Used to Sync states between elevators
 	Sender string //ID of sender
 }
 
-type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
-	Button_matrix Button_matrix
+type Network_order_message struct { //Used to send and receive orders
+	Order Order_struct 	//The order to execute
+	Id_slave string 		//The id of the slave to execute order
 }
+
+
+//---------Other types---------
 
 type Button_matrix struct { //Used to keep track of which buttons are pressed
 	Up   [4]bool
@@ -25,7 +42,11 @@ type Button_matrix struct { //Used to keep track of which buttons are pressed
 	Cab  [4]bool
 }
 
-type State struct { //The state struct to be synchronized
+type State struct { //The state struct, this includes order list etc..
+	Word string
+}
+
+type Order_struct struct { //The order object
 	Word string
 }
 

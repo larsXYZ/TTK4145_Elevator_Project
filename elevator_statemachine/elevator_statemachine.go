@@ -1,9 +1,10 @@
 //package main
-package elevator_interface
+package elevator_statemachine
 
-import ("./elevio_go"
-        d "./datatypes"
-        "fmt"
+import (
+  "./../elevio_go"
+  d "./../datatypes"
+  "fmt"
 )
 
 //Determines current floor at startup
