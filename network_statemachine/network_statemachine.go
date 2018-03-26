@@ -31,7 +31,7 @@ var sync_state = d.State{""}
 //=======Functions=======
 
 //Runs statemachine logic
-func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, State_order_channel chan d.State_order_message , port int, id_in string) {
+func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, state_order_channel chan d.State_order_message , port int, id_in string) {
 
 	id = id_in
 
@@ -66,9 +66,9 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
-		case <- timer_chan: //Tests sending order
+		case <- timer_chan: //Tests sending order and other things -----------------------------------
 			if is_master && len(current_peers) > 1{
-				State_order_channel <- d.State_order_message{d.Order_struct{},current_peers[1]}
+				delegate_order(state_order_channel, d.Order_struct{"test order"})
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
@@ -135,4 +135,38 @@ func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool){
 
 func update_connected_count	(pu peers.PeerUpdate){ //Updates connected elevator counter
 	connected_elevator_count = len(pu.Peers)
+}
+
+
+func delegate_order(state_order_channel chan d.State_order_message, order d.Order_struct){ //Delegates order to available slaves
+
+	fmt.Println("-----Delegating order-----")
+	finished_state := false
+
+	for (!finished_state){
+
+		for i := 0; i < len(current_peers); i++{
+
+			//Dont send order to self
+			if current_peers[i] == id{
+				continue
+			}
+
+			//For debugging..
+			fmt.Printf("Sending order to id: %s (%d of %d) - ", current_peers[i],i+1,len(current_peers))
+
+			//Notify order order_handler
+			message := d.State_order_message{order, current_peers[i], false}
+			state_order_channel <- message
+
+			select{
+
+			case response := <- state_order_channel: //Receives order update from order handler
+				if (response.ACK){ //If we ACK the order has been executed
+					fmt.Println("")
+					return
+				}
+			}
+		}
+	}
 }

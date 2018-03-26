@@ -18,6 +18,7 @@ type State_elev_message struct { //Used to communicate between statemachine and 
 type State_order_message struct { //Used to communicate between net-statemachine and order_handler
 	Order Order_struct 	//The order sent
 	Id_slave string			//The id of the slave to execute order
+	ACK bool						//If order is executed this is true
 }
 
 //---------Network types--------

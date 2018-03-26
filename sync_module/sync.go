@@ -85,7 +85,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
         fmt.Println("SYNC TIMEOUT, resending...")
         break;
 
-      case command :=<-state_sync_channel: //If there is a network change we resync.
+      case command :=<-state_sync_channel: //If there is a network change we try another elevator
           sync_state(sync_tx_chn, sync_rx_chn, command, state_sync_channel)
           return
       }
