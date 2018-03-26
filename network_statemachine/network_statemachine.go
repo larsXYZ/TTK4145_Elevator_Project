@@ -19,6 +19,7 @@ var is_master = false
 var current_master_id = ""
 var id = ""
 var localIp = ""
+var current_peers = []string{}
 var peers_port = 0
 var connected_elevator_count = 1
 
@@ -57,6 +58,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
 			reevaluate_master_state(pu,timer_chan) //Redetermine MASTER
+			current_peers = pu.Peers
 			if is_master{
 				state_sync_channel <- d.State_sync_message{sync_state,connected_elevator_count}//Inform sync module
 			}
@@ -65,23 +67,16 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
 		case <- timer_chan: //Tests sending order
-			if is_master{
-				State_order_channel <- d.State_order_message{d.Order_struct{},"test_id"}
+			if is_master && len(current_peers) > 1{
+				State_order_channel <- d.State_order_message{d.Order_struct{},current_peers[1]}
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
 			if (sync_state != message.SyncState){ //Updates state variable
-				fmt.Printf("State variable updated, was %s is now %s", sync_state, message.SyncState)
+				fmt.Printf("State variable updated, was %s is now %s\n", sync_state, message.SyncState)
 				sync_state = message.SyncState
 			}
-
-
-
 		}
-
-
-
-
 	}
 }
 

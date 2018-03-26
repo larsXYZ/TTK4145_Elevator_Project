@@ -31,6 +31,8 @@ type Network_sync_message struct { //Used to Sync states between elevators
 type Network_order_message struct { //Used to send and receive orders
 	Order Order_struct 	//The order to execute
 	Id_slave string 		//The id of the slave to execute order
+	ACK bool	//If slave CAN execute order this is returned
+	NACK bool //If slave CANT execute order this is returned
 }
 
 
