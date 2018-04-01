@@ -11,8 +11,9 @@ type State_sync_message struct { //Used to communicate between statemachine and 
 	Connected_count int //Number of connected elevators, important to make sure all elevators has been synchronized
 }
 
-type State_elev_message struct { //Used to communicate between statemachine and elevator_interface
+type State_elev_message struct { //Used to communicate between network statemachine and elevator statemachine
 	Button_matrix Button_matrix
+	Floor int
 }
 
 type State_order_message struct { //Used to communicate between net-statemachine and order_handler
