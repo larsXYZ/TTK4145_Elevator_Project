@@ -22,11 +22,7 @@ var localIp = ""
 var current_peers = []string{}
 var peers_port = 0
 var connected_elevator_count = 1
-
-var sync_state = d.State{""}
-
-
-//var bcast_port = peers_port + 1
+var sync_state = d.State{}
 
 //=======Functions=======
 
@@ -42,10 +38,6 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 	//Start peer system
 	go peers.Receiver(port, peers_rx_channel)
 	go peers.Transmitter(port, id, peers_tx_channel)
-
-	//Customizes test state variable
-	sync_state = d.State_init()
-	sync_state.Word = "VAR: " + id
 
 	//Starts timer
 	timer_chan := make(chan bool)
@@ -68,13 +60,18 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 		case <- timer_chan: //Tests sending order and other things -----------------------------------
 			if is_master && len(current_peers) > 1{
-				delegate_order(state_order_channel, d.Order_struct{"test order"})
+				delegate_order(state_order_channel, d.Order_struct{3,true,false,false})
 			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
 			if (sync_state != message.SyncState){ //Updates state variable
 				fmt.Printf("State variable updated, was %s is now %s\n", sync_state, message.SyncState)
 				sync_state = message.SyncState
+			}
+
+		case <- state_order_channel: //Receives update from order handler
+			if (is_master) {
+				fmt.Println("UPDATING ORDERARRAY\n")
 			}
 		}
 	}

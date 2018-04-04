@@ -23,7 +23,7 @@ type State_order_message struct { //Used to communicate between net-statemachine
 }
 
 type Order_elev_message struct { //Sent between order handler and elevator statemachine
-	Order Order_struct
+	Order Order_struct	//Order
 	BusyState bool		//Returns busystate
 }
 
@@ -31,7 +31,7 @@ type Order_elev_message struct { //Sent between order handler and elevator state
 
 type Network_sync_message struct { //Used to Sync states between elevators
 	SyncState State //State variable to be synced
-	SyncAck bool
+	SyncAck bool	//Signal acknowlinging receiving sync-message
 	Sender string //ID of sender
 }
 
@@ -52,11 +52,14 @@ type Button_matrix struct { //Used to keep track of which buttons are pressed
 }
 
 type State struct { //The state struct, this includes order list etc..
-	Word string
+	OrderArray [50]Order_struct //The list of orders to execute
 }
 
 type Order_struct struct { //The order object
-	Word string
+	Floor int //Floor which the elevator should move to
+	Up bool		//True if passanger wants to go up
+	Down bool	//True if passanger wants to go down
+	Cab bool	//True if cab button is pressed
 }
 
 //===DATATYPE CONSTRUCTORS===
@@ -71,5 +74,5 @@ func Button_matrix_init() Button_matrix { //Initializes a button matrix object
 }
 
 func State_init() State{ //Creates empty State variable
-	return State{""}
+	return State{}
 }

@@ -53,13 +53,13 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
     select{
 
     case button_event := <- buttons: //Reads button inputs
-      if button_event.Button == elevio.BT_HallUp {
-        update.Button_matrix.Up[button_event.Floor] = true
-      }else if button_event.Button == elevio.BT_HallDown{
-        update.Button_matrix.Down[button_event.Floor] = true
-      }else if button_event.Button == elevio.BT_Cab{
-        update.Button_matrix.Cab[button_event.Floor] = true
-      }
+
+      fmt.Println("BUTTON PRESSED")
+      fmt.Println(button_event)
+
+      //Create and send order update
+      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2}
+      order_elev_channel <- d.Order_elev_message{new_order,false}
 
     case floor := <- floor_sensors_channel: //Checks floor sensors
       current_floor = floor
@@ -82,7 +82,6 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       if rand.Intn(100) < 70{
         busystate = true
       }
-      fmt.Println("A")
       order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
 
     }
