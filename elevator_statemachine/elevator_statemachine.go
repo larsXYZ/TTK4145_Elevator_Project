@@ -28,11 +28,11 @@ func init_floor_finder(floor_sensors_channel chan int) int {
   return current_floor
 }
 
-func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message){
+func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message, simIp string){
 
   //Initializes driver
   numFloors := 4
-  elevio.Init("localhost:15657", numFloors)
+  elevio.Init(simIp, numFloors)
 
 
   //Channel to driver
@@ -48,7 +48,7 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
   update := d.State_elev_message{}
   update.Button_matrix = d.Button_matrix_init()
   fmt.Println(update.Button_matrix)
-  
+
   for{
     select{
 

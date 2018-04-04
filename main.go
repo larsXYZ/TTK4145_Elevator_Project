@@ -21,7 +21,11 @@ func main() {
 
 	//Determines port number
 	portPtr := flag.Int("port", 15000, "an int")
+	elevPortPtr := flag.Int("elevport", 15657, "the port of the elevator sim")
 	flag.Parse()
+
+	//Create sim-elevator ip
+	elevSimIp := fmt.Sprintf("localhost:%d",*elevPortPtr)
 
 	//Determine ip & id
 	localIp, _ := localip.LocalIP()
@@ -39,7 +43,7 @@ func main() {
 	go network_order_handler.Run(netstate_order_channel,netorder_elev_channel, id)
 
 	//Runs interface module
-	go elevator_statemachine.Run(netstate_elev_channel,netorder_elev_channel)
+	go elevator_statemachine.Run(netstate_elev_channel,netorder_elev_channel, elevSimIp)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)
