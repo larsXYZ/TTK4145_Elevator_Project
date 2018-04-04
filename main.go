@@ -33,12 +33,13 @@ func main() {
 	netstate_sync_channel				:= make(chan d.State_sync_message)
 	netstate_elev_channel 			:= make(chan d.State_elev_message)
 	netstate_order_channel			:= make(chan d.State_order_message)
+	netorder_elev_channel				:= make(chan d.Order_elev_message)
 
 	//Run order handler module
-	go network_order_handler.Run(netstate_order_channel, id)
+	go network_order_handler.Run(netstate_order_channel,netorder_elev_channel, id)
 
 	//Runs interface module
-	go elevator_statemachine.Run(netstate_elev_channel)
+	go elevator_statemachine.Run(netstate_elev_channel,netorder_elev_channel)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)

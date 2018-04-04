@@ -22,6 +22,10 @@ type State_order_message struct { //Used to communicate between net-statemachine
 	ACK bool						//If order is executed this is true
 }
 
+type Order_elev_message struct { //Sent between order handler and elevator statemachine
+	BusyState bool		//Returns busystate
+}
+
 //---------Network types--------
 
 type Network_sync_message struct { //Used to Sync states between elevators

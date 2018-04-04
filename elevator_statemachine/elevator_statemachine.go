@@ -5,6 +5,7 @@ import (
   "./../elevio_go"
   d "./../datatypes"
   "fmt"
+  "math/rand"
 )
 
 //Determines current floor at startup
@@ -27,7 +28,7 @@ func init_floor_finder(floor_sensors_channel chan int) int {
   return current_floor
 }
 
-func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan bool){
+func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message){
   fmt.Println("sdas")
   //Initializes driver
   numFloors := 4
@@ -48,21 +49,20 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan b
   update.Button_matrix = d.Button_matrix_init()
   fmt.Println(update.Button_matrix)
   //state_elev_channel <- update
+  fmt.Println("Starting listening ops: ELEV STATE")
   for{
     select{
 
     case button_event := <- buttons:
-      //fmt.Println(button_event)
       if button_event.Button == elevio.BT_HallUp {
         update.Button_matrix.Up[button_event.Floor] = true
       }else if button_event.Button == elevio.BT_HallDown{
         update.Button_matrix.Down[button_event.Floor] = true
       }else if button_event.Button == elevio.BT_Cab{
         update.Button_matrix.Cab[button_event.Floor] = true
-        }
+      }
 
     case floor := <- floor_sensors_channel:
-      //fmt.Println(floor)
       current_floor = floor
       elevio.SetFloorIndicator(floor)
 
@@ -76,15 +76,17 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan b
       }else{
         elevio.SetMotorDirection(elevio.MD_Up)
       }
-      /*if floor == floor_sensors_channel{
-        elevio.SetMotorDirection(elevio.MD_Stop)
-        }*/
-    }
-    //a := 4
-  //state_elev_channel <- a
-    state_elev_channel <- update
-    fmt.Println(update.Button_matrix)
 
+    case <-order_elev_channel: //Respond to busyrequest
+      fmt.Println("ORDER HANDLER MESSAGE REC")
+      busystate := false
+      if rand.Intn(100) < 70{
+        busystate = true
+      }
+      fmt.Println("A")
+      order_elev_channel <- d.Order_elev_message{busystate}
+      fmt.Println("RESPONDED")
+    }
   }
 }
 

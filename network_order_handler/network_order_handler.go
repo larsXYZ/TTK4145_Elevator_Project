@@ -9,7 +9,6 @@ import(
   "./../network_go/bcast"
   "fmt"
   "time"
-  "math/rand"
 )
 
 //States
@@ -18,7 +17,7 @@ var id = ""
 
 //====== FUNCTIONS =======
 
-func Run(netstate_order_channel chan d.State_order_message, id_in string ){ //Starts order handler system
+func Run(netstate_order_channel chan d.State_order_message, order_elev_channel chan d.Order_elev_message, id_in string ){ //Starts order handler system
 
   //Store id
   id = id_in
@@ -38,14 +37,15 @@ func Run(netstate_order_channel chan d.State_order_message, id_in string ){ //St
         case net_message := <- order_rx_chn: //Receive order from net
           if (!net_message.ACK && !net_message.NACK){ //Filters out ACK and NACK messages
             fmt.Println("RECEIVED ORDER FROM NETWORK")
-            if (net_message.Id_slave == id){
+            if (net_message.Id_slave == id){ //Check if the message is for us
 
               busystate := false
-
               // ASK ELEVATOR STATEMACHINE IF IT CAN EXECUTE ORDER NOW
-              // RESPOND ACK OR NACK ACCORDING TO RESPONSE FROM ELEVATOR STATEMACHINE
-              if rand.Intn(100) < 70{
-                busystate = true
+              order_elev_channel <- d.Order_elev_message{false}
+              select{
+              case response := <-order_elev_channel:
+                fmt.Println("Response received")
+                busystate = response.BusyState
               }
               //This is currently for testing only
 
@@ -79,7 +79,7 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
   for{
 
     //Setting up timout signal
-    timeOUT := time.NewTimer(time.Millisecond * 200)
+    timeOUT := time.NewTimer(time.Millisecond * 300)
 
     //Send order
     order_tx_chn <- d.Network_order_message{netstate_message.Order, netstate_message.Id_slave, false, false}
