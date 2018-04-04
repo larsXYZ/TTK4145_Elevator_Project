@@ -29,7 +29,7 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 }
 
 func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message){
-  fmt.Println("sdas")
+
   //Initializes driver
   numFloors := 4
   elevio.Init("localhost:15657", numFloors)
@@ -48,12 +48,11 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
   update := d.State_elev_message{}
   update.Button_matrix = d.Button_matrix_init()
   fmt.Println(update.Button_matrix)
-  //state_elev_channel <- update
-  fmt.Println("Starting listening ops: ELEV STATE")
+  
   for{
     select{
 
-    case button_event := <- buttons:
+    case button_event := <- buttons: //Reads button inputs
       if button_event.Button == elevio.BT_HallUp {
         update.Button_matrix.Up[button_event.Floor] = true
       }else if button_event.Button == elevio.BT_HallDown{
@@ -62,11 +61,11 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
         update.Button_matrix.Cab[button_event.Floor] = true
       }
 
-    case floor := <- floor_sensors_channel:
+    case floor := <- floor_sensors_channel: //Checks floor sensors
       current_floor = floor
       elevio.SetFloorIndicator(floor)
 
-    case new_order := <- state_elev_channel:
+    case new_order := <- state_elev_channel: //Receives order from state machine, (NOT NEEDED)
       fmt.Println(new_order.Floor)
       floor := new_order.Floor
       if floor == current_floor {
@@ -77,24 +76,15 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
         elevio.SetMotorDirection(elevio.MD_Up)
       }
 
-    case <-order_elev_channel: //Respond to busyrequest
-      fmt.Println("ORDER HANDLER MESSAGE REC")
+    case <-order_elev_channel: //Respond to busyrequest, if busy send busy signal, else execute order
+
       busystate := false
       if rand.Intn(100) < 70{
         busystate = true
       }
       fmt.Println("A")
-      order_elev_channel <- d.Order_elev_message{busystate}
-      fmt.Println("RESPONDED")
+      order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
+
     }
   }
 }
-
-/*
-func main(){
-  state_elev_channel := make(chan d.State_elev_message)
-  order_elev_channel := make(chan bool)
-  go Run(state_elev_channel, order_elev_channel)
-  Run(state_elev_channel, order_elev_channel)
-}
-*/

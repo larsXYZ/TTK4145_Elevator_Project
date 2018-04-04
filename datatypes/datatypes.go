@@ -23,6 +23,7 @@ type State_order_message struct { //Used to communicate between net-statemachine
 }
 
 type Order_elev_message struct { //Sent between order handler and elevator statemachine
+	Order Order_struct
 	BusyState bool		//Returns busystate
 }
 

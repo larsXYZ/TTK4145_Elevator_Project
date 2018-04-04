@@ -41,7 +41,7 @@ func Run(netstate_order_channel chan d.State_order_message, order_elev_channel c
 
               busystate := false
               // ASK ELEVATOR STATEMACHINE IF IT CAN EXECUTE ORDER NOW
-              order_elev_channel <- d.Order_elev_message{false}
+              order_elev_channel <- d.Order_elev_message{d.Order_struct{},false}
               select{
               case response := <-order_elev_channel:
                 fmt.Println("Response received")
