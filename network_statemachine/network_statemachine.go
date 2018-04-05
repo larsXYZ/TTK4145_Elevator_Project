@@ -69,9 +69,13 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 				sync_state = message.SyncState
 			}
 
-		case <- state_order_channel: //Receives update from order handler
+		case message := <-state_order_channel: //Receives update from order handler
 			if (is_master) {
 				fmt.Println("UPDATING ORDERARRAY\n")
+				update_state(message.Order)
+				fmt.Println(sync_state)
+			} else{
+				fmt.Println("NOT MASTER")
 			}
 		}
 	}
@@ -165,5 +169,13 @@ func delegate_order(state_order_channel chan d.State_order_message, order d.Orde
 				}
 			}
 		}
+	}
+}
+
+func update_state(order d.Order_struct){ //Updates state from new order
+	if (order.Up){
+		sync_state.Button_matrix.Up[order.Floor] = true;
+	} else if (order.Down){
+		sync_state.Button_matrix.Down[order.Floor] = true;
 	}
 }

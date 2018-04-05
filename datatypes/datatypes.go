@@ -12,7 +12,7 @@ type State_sync_message struct { //Used to communicate between statemachine and 
 }
 
 type State_elev_message struct { //Used to communicate between network statemachine and elevator statemachine
-	Button_matrix Button_matrix
+	Button_matrix Button_matrix_struct
 	Floor int
 }
 
@@ -45,14 +45,14 @@ type Network_order_message struct { //Used to send and receive orders
 
 //---------Other types---------
 
-type Button_matrix struct { //Used to keep track of which buttons are pressed
+type Button_matrix_struct struct { //Used to keep track of which buttons are pressed
 	Up   [4]bool
 	Down [4]bool
 	Cab  [4]bool
 }
 
 type State struct { //The state struct, this includes order list etc..
-	OrderArray [50]Order_struct //The list of orders to execute
+	Button_matrix Button_matrix_struct
 }
 
 type Order_struct struct { //The order object
@@ -64,8 +64,8 @@ type Order_struct struct { //The order object
 
 //===DATATYPE CONSTRUCTORS===
 
-func Button_matrix_init() Button_matrix { //Initializes a button matrix object
-	m := Button_matrix{}
+func Button_matrix_init() Button_matrix_struct { //Initializes a button matrix object
+	m := Button_matrix_struct{}
 	m.Up = [4]bool{false, false, false, false}
 	m.Down = [4]bool{false, false, false, false}
 	m.Cab = [4]bool{false, false, false, false}

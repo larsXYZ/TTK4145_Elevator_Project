@@ -79,7 +79,7 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
     case <-order_elev_channel: //Respond to busyrequest, if busy send busy signal, else execute order
 
       busystate := false
-      if rand.Intn(100) < 70{
+      if rand.Intn(100) < 30{
         busystate = true
       }
       order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
