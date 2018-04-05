@@ -34,11 +34,11 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netstate_elevstate_channel 	:= make(chan d.State_elev_message)
-	netstate_sync_channel				:= make(chan d.State_sync_message)
-	netstate_elev_channel 			:= make(chan d.State_elev_message)
-	netstate_order_channel			:= make(chan d.State_order_message)
-	netorder_elev_channel				:= make(chan d.Order_elev_message)
+	netstate_elevstate_channel 	:= make(chan d.State_elev_message,100)
+	netstate_sync_channel				:= make(chan d.State_sync_message,100)
+	netstate_elev_channel 			:= make(chan d.State_elev_message,100)
+	netstate_order_channel			:= make(chan d.State_order_message,100)
+	netorder_elev_channel				:= make(chan d.Order_elev_message,100)
 
 	fmt.Println("-----Activating Modules-----")
 

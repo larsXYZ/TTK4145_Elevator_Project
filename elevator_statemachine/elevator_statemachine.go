@@ -54,7 +54,6 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
     select{
 
     case button_event := <- buttons: //Reads button inputs
-
       //Create and send order update
       new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2}
       order_elev_channel <- d.Order_elev_message{new_order,false}
@@ -81,6 +80,8 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
 }
 
 func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
+  fmt.Println("Elev: update_lights() START")
+
   //Up lights
   for floor := 0; floor < numFloors; floor++{
     elevio.SetButtonLamp(0,floor, button_matrix.Up[floor])
@@ -90,4 +91,6 @@ func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
   for floor := 0; floor < numFloors; floor++{
     elevio.SetButtonLamp(1,floor, button_matrix.Down[floor])
   }
+
+  fmt.Println("Elev: update_lights() END")
 }

@@ -71,7 +71,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			fmt.Println(message.SyncState)
 			fmt.Println("")
 			State = message.SyncState
-			//update_lights(state_elev_channel)
+			update_lights(state_elev_channel)
 
 		case message := <-state_order_channel: //Receives update from order handler
 			if (is_master) {
@@ -80,7 +80,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 				sync_state(state_sync_channel)
 				fmt.Printf("Syncing state with slaves\n")
 				fmt.Println(State)
-				//update_lights(state_elev_channel)
+				update_lights(state_elev_channel)
 			}
 		}
 	}
@@ -188,6 +188,7 @@ func sync_state(state_sync_channel chan d.State_sync_message){ //Syncs state wit
 }
 
 func update_lights(state_elev_channel chan d.State_elev_message){ //Tells elevator to update lights
-	fmt.Println("Netstate: update_lights()")
+	fmt.Println("Netstate: update_lights() START")
 	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
+	fmt.Println("Netstate: update_lights() END")
 }
