@@ -1,5 +1,9 @@
-//package main
 package elevator_statemachine
+
+//-----------------------------------------------------------------------------------------
+//-------------------------------------------Controls elevator-----------------------------
+//-----------------------------------------------------------------------------------------
+
 
 import (
   "./../elevio_go"
@@ -7,6 +11,8 @@ import (
   "fmt"
   "math/rand"
 )
+
+var numFloors = 4
 
 //Determines current floor at startup
 func init_floor_finder(floor_sensors_channel chan int) int {
@@ -31,9 +37,7 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message, simIp string){
 
   //Initializes driver
-  numFloors := 4
   elevio.Init(simIp, numFloors)
-
 
   //Channel to driver
   buttons := make(chan elevio.ButtonEvent)
@@ -44,18 +48,12 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
   go elevio.PollFloorSensor(floor_sensors_channel)
 
   current_floor := init_floor_finder(floor_sensors_channel)
-
-  update := d.State_elev_message{}
-  update.Button_matrix = d.Button_matrix_init()
-  fmt.Println(update.Button_matrix)
+  fmt.Printf("Elevator initialized: Floor determined: %d",current_floor)
 
   for{
     select{
 
     case button_event := <- buttons: //Reads button inputs
-
-      fmt.Println("BUTTON PRESSED")
-      fmt.Println(button_event)
 
       //Create and send order update
       new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2}
@@ -65,15 +63,9 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       current_floor = floor
       elevio.SetFloorIndicator(floor)
 
-    case new_order := <- state_elev_channel: //Receives order from state machine, (NOT NEEDED)
-      fmt.Println(new_order.Floor)
-      floor := new_order.Floor
-      if floor == current_floor {
-        return
-      }else if floor < current_floor{
-        elevio.SetMotorDirection(elevio.MD_Down)
-      }else{
-        elevio.SetMotorDirection(elevio.MD_Up)
+    case message := <- state_elev_channel:
+      if (message.UpdateLights){  //Updates lights
+        update_lights(message.Button_matrix)
       }
 
     case <-order_elev_channel: //Respond to busyrequest, if busy send busy signal, else execute order
@@ -85,5 +77,17 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
 
     }
+  }
+}
+
+func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
+  //Up lights
+  for floor := 0; floor < numFloors; floor++{
+    elevio.SetButtonLamp(0,floor, button_matrix.Up[floor])
+  }
+
+  //Down lights
+  for floor := 0; floor < numFloors; floor++{
+    elevio.SetButtonLamp(1,floor, button_matrix.Down[floor])
   }
 }

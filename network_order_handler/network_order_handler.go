@@ -75,16 +75,13 @@ func Run(netstate_order_channel chan d.State_order_message, order_elev_channel c
 
         case elevstate_message := <- order_elev_channel: //Receive order from elev state (button press)
           //Broadcast on network
-          fmt.Println("BROADCAST ORDER TO MASTER")
+          fmt.Println("BROADCAST NEW ORDER TO MASTER")
           fmt.Println(elevstate_message)
           new_order_tx_chn <- elevstate_message.Order
 
         case new_order := <-new_order_rx_chn: //Receive new order update
           //Send to network_statemachine
-          fmt.Println("RECEIVED NEW ORDER FROM NET ")
           netstate_order_channel <- d.State_order_message{new_order, "", false}
-
-
 
     }
   }

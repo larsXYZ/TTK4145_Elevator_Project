@@ -13,7 +13,7 @@ type State_sync_message struct { //Used to communicate between statemachine and 
 
 type State_elev_message struct { //Used to communicate between network statemachine and elevator statemachine
 	Button_matrix Button_matrix_struct
-	Floor int
+	UpdateLights bool		//True if we should update lights
 }
 
 type State_order_message struct { //Used to communicate between net-statemachine and order_handler
@@ -24,7 +24,7 @@ type State_order_message struct { //Used to communicate between net-statemachine
 
 type Order_elev_message struct { //Sent between order handler and elevator statemachine
 	Order Order_struct	//Order
-	BusyState bool		//Returns busystate
+	BusyState bool			//Returns busystate
 }
 
 //---------Network types--------

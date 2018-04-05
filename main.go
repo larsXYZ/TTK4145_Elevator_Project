@@ -15,6 +15,7 @@ import (
 	u "./utilities"
 	"./elevator_statemachine"
 	"./network_order_handler"
+	"time"
 )
 
 func main() {
@@ -39,11 +40,15 @@ func main() {
 	netstate_order_channel			:= make(chan d.State_order_message)
 	netorder_elev_channel				:= make(chan d.Order_elev_message)
 
-	//Run order handler module
-	go network_order_handler.Run(netstate_order_channel,netorder_elev_channel, id)
+	fmt.Println("-----Activating Modules-----")
 
 	//Runs interface module
 	go elevator_statemachine.Run(netstate_elev_channel,netorder_elev_channel, elevSimIp)
+	//Waiting for elevator to find floor
+	time.Sleep(2*time.Second)
+
+	//Run order handler module
+	go network_order_handler.Run(netstate_order_channel,netorder_elev_channel, id)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)

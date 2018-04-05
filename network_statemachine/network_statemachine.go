@@ -22,7 +22,7 @@ var localIp = ""
 var current_peers = []string{}
 var peers_port = 0
 var connected_elevator_count = 1
-var sync_state = d.State{}
+var State = d.State{}
 
 //=======Functions=======
 
@@ -46,36 +46,41 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 	//Start regular operation
 	for {
+		fmt.Println("") //Starts new line in debug
+
 		select {
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
-			reevaluate_master_state(pu,timer_chan) //Redetermine MASTER
+			reevaluate_master_state(pu,timer_chan)
 			current_peers = pu.Peers
 			if is_master{
-				state_sync_channel <- d.State_sync_message{sync_state,connected_elevator_count}//Inform sync module
+				sync_state(state_sync_channel)
 			}
 			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
-		case <- timer_chan: //Tests sending order and other things -----------------------------------
-			if is_master && len(current_peers) > 1{
-				delegate_order(state_order_channel, d.Order_struct{3,true,false,false})
-			}
+		//case <- timer_chan: //Tests sending order and other things -----------------------------------
+		//	if is_master && len(current_peers) > 1{
+		//		delegate_order(state_order_channel, d.Order_struct{3,true,false,false})
+		//	}
 
 		case message := <- state_sync_channel: //Receives update from sync module
-			if (sync_state != message.SyncState){ //Updates state variable
-				fmt.Printf("State variable updated, was %s is now %s\n", sync_state, message.SyncState)
-				sync_state = message.SyncState
-			}
+			fmt.Println("State variable updated")
+			fmt.Println(State)
+			fmt.Println(message.SyncState)
+			fmt.Println("")
+			State = message.SyncState
+			//update_lights(state_elev_channel)
 
 		case message := <-state_order_channel: //Receives update from order handler
 			if (is_master) {
-				fmt.Println("UPDATING ORDERARRAY\n")
+				fmt.Printf("Master: New order received: ")
 				update_state(message.Order)
-				fmt.Println(sync_state)
-			} else{
-				fmt.Println("NOT MASTER")
+				sync_state(state_sync_channel)
+				fmt.Printf("Syncing state with slaves\n")
+				fmt.Println(State)
+				//update_lights(state_elev_channel)
 			}
 		}
 	}
@@ -91,7 +96,7 @@ func enableMasterState(timer_chan chan bool) {
 	fmt.Println("Enables master state")
 }
 
-//Enables master state
+//Removes master state
 func removeMasterState(timer_chan chan bool) {
 	is_master = false
 
@@ -104,8 +109,6 @@ func removeMasterState(timer_chan chan bool) {
 func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool){
 
 	update_connected_count(pu) //Updates connected elevator count
-
-
 
 	id_lowest := 999999999999999999 //Determines lowest id -> master
 	for i := 0; i < len(pu.Peers); i++{
@@ -174,8 +177,17 @@ func delegate_order(state_order_channel chan d.State_order_message, order d.Orde
 
 func update_state(order d.Order_struct){ //Updates state from new order
 	if (order.Up){
-		sync_state.Button_matrix.Up[order.Floor] = true;
+		State.Button_matrix.Up[order.Floor] = true;
 	} else if (order.Down){
-		sync_state.Button_matrix.Down[order.Floor] = true;
+		State.Button_matrix.Down[order.Floor] = true;
 	}
+}
+
+func sync_state(state_sync_channel chan d.State_sync_message){ //Syncs state with slave-elevators
+	state_sync_channel <- d.State_sync_message{State,connected_elevator_count}//Inform sync module
+}
+
+func update_lights(state_elev_channel chan d.State_elev_message){ //Tells elevator to update lights
+	fmt.Println("Netstate: update_lights()")
+	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
 }

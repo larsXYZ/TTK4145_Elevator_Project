@@ -37,7 +37,7 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
       network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, sync_message)
 
     case command := <-state_sync_channel:
-      fmt.Println("Sync module: Command Received from NetworkStatemachine")
+      fmt.Printf("Sync module: Command Received from NetworkStatemachine: ")
       command_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, command)
     }
   }
