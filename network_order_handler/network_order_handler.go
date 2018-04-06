@@ -5,8 +5,8 @@ package network_order_handler
 //-----------------------------------------------------------------------------------------
 
 import(
-  d "./../datatypes"
-  "./../network_go/bcast"
+  d "../datatypes"
+  "../network_go/bcast"
   "fmt"
   "time"
 )

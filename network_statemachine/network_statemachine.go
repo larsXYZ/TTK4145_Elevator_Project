@@ -6,10 +6,10 @@ package network_statemachine
 
 //Import packages
 import (
-	d "./../datatypes"
-	"./../timer"
-	"./../network_go/peers"
-	u "./../utilities"
+	d "../datatypes"
+	"../timer"
+	"../network_go/peers"
+	u "../utilities"
 	"fmt"
 
 )

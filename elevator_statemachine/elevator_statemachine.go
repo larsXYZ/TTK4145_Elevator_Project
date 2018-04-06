@@ -6,8 +6,8 @@ package elevator_statemachine
 
 
 import (
-  "./../elevio_go"
-  d "./../datatypes"
+  "../elevio_go"
+  d "../datatypes"
   "fmt"
   "math/rand"
 )
