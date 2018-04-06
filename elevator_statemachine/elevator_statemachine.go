@@ -55,7 +55,8 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
 
     case button_event := <- buttons: //Reads button inputs
       //Create and send order update
-      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2}
+      fmt.Println("CASE BUTTON_EVENT")
+      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2,false}
       order_elev_channel <- d.Order_elev_message{new_order,false}
 
     case floor := <- floor_sensors_channel: //Checks floor sensors
@@ -63,6 +64,7 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       elevio.SetFloorIndicator(floor)
 
     case message := <- state_elev_channel:
+      fmt.Println("CASE MESSAGE")
       if (message.UpdateLights){  //Updates lights
         update_lights(message.Button_matrix)
       }
@@ -75,7 +77,10 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       }
       order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
 
+
     }
+
+
   }
 }
 

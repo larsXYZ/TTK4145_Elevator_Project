@@ -60,6 +60,7 @@ type Order_struct struct { //The order object
 	Up bool		//True if passanger wants to go up
 	Down bool	//True if passanger wants to go down
 	Cab bool	//True if cab button is pressed
+	Fin bool
 }
 
 //===DATATYPE CONSTRUCTORS===

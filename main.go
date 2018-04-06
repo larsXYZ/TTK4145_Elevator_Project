@@ -34,7 +34,6 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netstate_elevstate_channel 	:= make(chan d.State_elev_message,100)
 	netstate_sync_channel				:= make(chan d.State_sync_message,100)
 	netstate_elev_channel 			:= make(chan d.State_elev_message,100)
 	netstate_order_channel			:= make(chan d.State_order_message,100)
@@ -54,7 +53,7 @@ func main() {
 	go sync.Run(netstate_sync_channel, id)
 
 	//Runs network statemachine
-	go network_statemachine.Run(netstate_elevstate_channel, netstate_sync_channel, netstate_order_channel, *portPtr, id)
+	go network_statemachine.Run(netstate_elev_channel, netstate_sync_channel, netstate_order_channel, *portPtr, id)
 
 
 	//Waits

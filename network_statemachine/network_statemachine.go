@@ -60,10 +60,10 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
 			fmt.Printf("MASTER STATE: %t\n\n", is_master)
 
-		//case <- timer_chan: //Tests sending order and other things -----------------------------------
-		//	if is_master && len(current_peers) > 1{
-		//		delegate_order(state_order_channel, d.Order_struct{3,true,false,false})
-		//	}
+		case <- timer_chan: //Tests sending order and other things -----------------------------------
+			if is_master && len(current_peers) > 1{
+				delegate_order(state_order_channel, d.Order_struct{3,true,false,false,false})
+			}
 
 		case message := <- state_sync_channel: //Receives update from sync module
 			fmt.Println("State variable updated")
