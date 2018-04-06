@@ -90,6 +90,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 					fmt.Printf("Order found: floor %d\n", floor)
 					if delegate_order(state_order_channel, d.Order_struct{floor, up, down, false, false}) {
 						update_lights(state_elev_channel)
+						sync_state(state_sync_channel)
 					}
 				}
 			}
