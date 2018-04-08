@@ -9,7 +9,7 @@ import (
   "../elevio_go"
   d "../datatypes"
   "fmt"
-  "time"
+  //"time"
   //"sync"
   //"math/rand"
 )
@@ -83,7 +83,7 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
       if busystate == false{
           busystate = true
           go go_to_floor(order.Order.Floor,floor_sensors_channel)
-          time.Sleep(3*time.Second)
+
       }
     }
   }
@@ -95,7 +95,7 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int){
   }else if target_floor < current_floor{
     elevio.SetMotorDirection(elevio.MD_Down)
   }
-  
+
   for busystate{
     select{
     case arrived_floor := <-floor_sensors_channel:
