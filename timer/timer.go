@@ -16,7 +16,7 @@ func Run(timing_channel chan bool){ //Runs interrupts and respons to toggle mess
   fmt.Println("Timer modul: Initialized")
 
   //Starts internal timer
-  ticker := time.NewTicker(time.Millisecond * 4000)
+  ticker := time.NewTicker(time.Millisecond * 1000)
 
   for{
     select{

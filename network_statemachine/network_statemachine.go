@@ -14,7 +14,7 @@ import (
 )
 
 //=======States==========
-var is_master = false
+var master_state = false
 var current_master_id = ""
 var id = ""
 var localIp = ""
@@ -47,22 +47,19 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 	//Start regular operation
 	for {
-		fmt.Println("") //Starts new line in debug
 
 		select {
 
 		case pu := <-peers_rx_channel: //Receive update on connected elevators
 			reevaluate_master_state(pu, timer_chan)
 			current_peers = pu.Peers
-			if is_master {
+			if master_state {
 				sync_state(state_sync_channel)
 			}
-			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, is_master) //Print current info
+			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, master_state) //Print current info
 
 		case <-timer_chan: //Tests sending order and other things -----------------------------------
-			if is_master{
-
-				fmt.Printf("Network FSM: Delegating order: ")
+			if master_state{
 
 				//Check if we have an order to distribute
 				up := false
@@ -84,17 +81,12 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 				order := d.Order_struct{floor, up, down, false, false} //Order to be executed
 
 				if floor != -1 { //Delegate the found order
-					fmt.Printf("Order found: floor %d: \n", floor)
 					if delegate_order(state_order_channel, order) {//This is true if the order is executed
+						fmt.Printf("Network FSM: Order Delegated: Floor %d: \n", floor)
 						remove_order(order)
 						sync_state(state_sync_channel)
 						update_lights(state_elev_channel)
-						fmt.Printf("Order executed\n")
-					} else {
-						fmt.Printf("All elevators busy\n")
 					}
-				} else {
-					fmt.Printf("No order found..\n")
 				}
 			}
 
@@ -104,7 +96,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			update_lights(state_elev_channel)
 
 		case message := <-state_order_channel: //Receives update from order handler
-			if is_master {
+			if master_state {
 				update_state(message.Order)
 				sync_state(state_sync_channel)
 				fmt.Printf("Network FSM: Syncing new state with slaves\n")
@@ -116,7 +108,7 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 
 //Enables master state
 func enableMasterState(timer_chan chan bool) {
-	is_master = true
+	master_state = true
 	current_master_id = id
 
 	timer_chan <- true //Activate timer
@@ -126,7 +118,7 @@ func enableMasterState(timer_chan chan bool) {
 
 //Removes master state
 func removeMasterState(timer_chan chan bool) {
-	is_master = false
+	master_state = false
 
 	timer_chan <- false //Deactivate timer
 
@@ -148,14 +140,14 @@ func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool) {
 	}
 
 	if id_lowest == u.StrToInt(id) { //If this elevator has lowest id, we become master
-		if !is_master {
+		if !master_state {
 			fmt.Printf("Become MASTER\n")
 			enableMasterState(timer_chan)
 		} else {
 			fmt.Printf("Already MASTER, still MASTER\n")
 		}
 
-	} else if is_master { //If we are master we remove this status, since an other master has arrived
+	} else if master_state { //If we are master we remove this status, since an other master has arrived
 
 		current_master_id = fmt.Sprintf("%d", id_lowest) //Changes master ID
 		fmt.Printf("Removes master state, becomes SLAVE\n")
