@@ -7,7 +7,6 @@ package network_order_handler
 import (
 	"fmt"
 	"time"
-
 	d "../datatypes"
 	"../network_go/bcast"
 )
@@ -47,9 +46,6 @@ func Run(netstate_order_channel chan d.State_order_message, order_elev_channel c
 			netstate_order_channel <- netstate_message //Sends result to network statemachine
 
 		case elevstate_message := <-order_elev_channel: //Receive order from elev state (button press)
-			//Broadcast on network
-			fmt.Println("BROADCAST NEW ORDER TO MASTER")
-			fmt.Println(elevstate_message)
 			new_order_tx_chn <- elevstate_message.Order
 
 		case new_order := <-new_order_rx_chn: //Receive new order update
@@ -64,8 +60,10 @@ func Run(netstate_order_channel chan d.State_order_message, order_elev_channel c
 //Returns true if slave executes
 func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.Network_order_message, netstate_message d.State_order_message, order_elev_channel chan d.Order_elev_message) bool {
 
+	fmt.Printf("Order handler: Sending order to slave %s: ",netstate_message.Id_slave)
 
 	if netstate_message.Id_slave == id { //If we ask ourself, we poll elevator
+		fmt.Printf("Polling local elevator: ")
 		busystate := false
 		order_elev_channel <- d.Order_elev_message{netstate_message.Order, false}
 		select {
@@ -73,9 +71,9 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 			busystate = response.BusyState
 		}
 		if busystate {
-			fmt.Println("NACK received, slave busy")
+			fmt.Printf(" NACK received, local elevator BUSY\n\n")
 		} else {
-			fmt.Println("ACK received, order handled.")
+			fmt.Printf(" ACK received, order EXECUTED by local elevator\n\n")
 		}
 
 		return !busystate
@@ -95,15 +93,15 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 			select {
 			case message := <-order_rx_chn: //Receive ACK
 				if message.ACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Println("ACK received, order handled.")
+					fmt.Printf("[ACK], order EXECUTED\n\n")
 					return true
 				} else if !message.ACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Println("NACK received, slave busy")
+					fmt.Printf("[NACK] , slave BUSY\n\n")
 					return false
 				}
 
 			case <-timeOUT.C: //If we do not get response withing a timelimit we resend
-				fmt.Println("SYNC TIMEOUT")
+				fmt.Printf("|SYNC TIMEOUT| ")
 				return false
 			}
 		}
@@ -112,17 +110,24 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 
 func give_order_to_elevator(order_elev_channel chan d.Order_elev_message, delegate_order_tx_chn chan d.Network_order_message, net_message d.Network_order_message) { //Asks elevator if it can execute order, and gives result back
 	if !net_message.ACK && !net_message.NACK { //Filters out ACK and NACK messages
-		fmt.Println("RECEIVED ORDER FROM NETWORK")
 
 		if net_message.Id_slave == id { //Check if the message is for us
+
+			fmt.Printf("Order handler: Order for local elevator received: ")
 
 			// ASK ELEVATOR STATEMACHINE IF IT CAN EXECUTE ORDER NOW
 			busystate := false
 			order_elev_channel <- d.Order_elev_message{net_message.Order, false}
 			select {
 			case response := <-order_elev_channel:
-				fmt.Println("Response received")
 				busystate = response.BusyState
+			}
+
+			//Print busystate
+			if busystate {
+				fmt.Printf("Local elevator BUSY\n\n")
+			} else {
+				fmt.Printf("Local elevator EXECUTES\n\n")
 			}
 
 			net_message.ACK = !busystate

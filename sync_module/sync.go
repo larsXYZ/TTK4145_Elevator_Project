@@ -37,7 +37,6 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
       network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, sync_message)
 
     case command := <-state_sync_channel:
-      fmt.Printf("Sync module: Command Received from NetworkStatemachine: ")
       command_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, command)
     }
   }
@@ -47,10 +46,9 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
 //Synchronizes state with other elevators on network
 func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Network_sync_message, command d.State_sync_message, state_sync_channel chan d.State_sync_message){
 
-
   //If this is only elevator, it doesnt need to sync state
   if command.Connected_count == 1{
-    fmt.Printf("This is the only elevator, not need to sync state\n\n")
+    fmt.Println("Sync module: This is the only elevator, no need to sync state\n\n")
     return
   }
 
@@ -59,6 +57,8 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
 
   //Broadcasts state and wait for ACK
   for{
+
+    fmt.Printf("Sync module: Syncing state with %d other elevators: ", command.Connected_count-1)
 
     //Array to keep track of elevators which have ACK-ed
     ack_elevators := make([]string,0)
@@ -72,20 +72,19 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
       case ack_mes := <- sync_rx_chn: //Receive ACK
         if !u.IdInArray(ack_mes.Sender,ack_elevators) && ack_mes.SyncAck{
           ack_elevators = append(ack_elevators,ack_mes.Sender) //Adds it to the list
-          fmt.Printf("ACK received, (%d of %d)\n", len(ack_elevators), command.Connected_count-1)
-          fmt.Printf(" -> %q\n", ack_elevators)
+          fmt.Printf("%d", len(ack_elevators))
         }
 
         if len(ack_elevators) >= command.Connected_count-1{ //If all elevators ack we are finished
-          fmt.Printf("Sync completed, all %d elevators ACK\n\n", command.Connected_count-1)
+          fmt.Printf(": Sync completed, all %d elevators ACK\n", command.Connected_count-1)
           return
         }
 
       case <-timeOUT.C: //If we do not get response withing a timelimit we resend
-        fmt.Println("SYNC TIMEOUT, resending...")
+        fmt.Printf("|TIMEOUT| ")
         break;
 
-      case command :=<-state_sync_channel: //If there is a network change we try another elevator
+      case command :=<-state_sync_channel: //If there is a network change while we sync we must sync again
           sync_state(sync_tx_chn, sync_rx_chn, command, state_sync_channel)
           return
       }
@@ -100,7 +99,7 @@ func network_sync_handler(tx_chn chan d.Network_sync_message, rx_chn chan d.Netw
     state_sync_channel <- d.State_sync_message{m.SyncState,0}
 
     //Send ACK
-    fmt.Printf("State update received, sending ACK\n")
+    fmt.Println("Sync module: State update received, sending ACK\n")
     tx_chn <- d.Network_sync_message{d.State_init(),true,id}
   }
 }

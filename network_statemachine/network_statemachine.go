@@ -1,13 +1,12 @@
 package network_statemachine
 
 //-----------------------------------------------------------------------------------------
-//--------------- Receives, and delegates orders, the brain of each elevator---------------
+//--------------- Receives, synchronizes, and delegates orders. ---------------------------
 //-----------------------------------------------------------------------------------------
 
 //Import packages
 import (
 	"fmt"
-
 	d "../datatypes"
 	"../network_go/peers"
 	"../timer"
@@ -58,58 +57,52 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			if is_master {
 				sync_state(state_sync_channel)
 			}
-			fmt.Printf("\nCHANGE IN NETWORK DETECTED: %q\n", pu.Peers) //Print all current elevators
-			fmt.Printf("Connected elevator counter: %d connections\n", connected_elevator_count)
-			fmt.Printf("MASTER STATE: %t\n\n", is_master)
+			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, is_master) //Print current info
 
 		case <-timer_chan: //Tests sending order and other things -----------------------------------
-			if is_master && len(current_peers) >= 1 {
+			if is_master{
 
-				fmt.Printf("DELEGATING ORDER: ")
+				fmt.Printf("Network FSM: Delegating order: ")
 
 				//Check if we have an order to distribute
 				up := false
 				down := false
-				floor := -1
+				floor := -1 //-1 indicates that no new order has been found
 
 				for i := 0; i < 4; i++ { //Look through state
 					if State.Button_matrix.Up[i] {
 						up = true
 						floor = i
-						State.Button_matrix.Up[i] = false
 						break
 					} else if State.Button_matrix.Down[i] {
 						down = true
 						floor = i
-						State.Button_matrix.Down[i] = false
 						break
 					}
 				}
 
 				if floor != -1 { //Delegate the found order
 					fmt.Printf("Order found: floor %d\n", floor)
-					if delegate_order(state_order_channel, d.Order_struct{floor, up, down, false, false}) {
+					if delegate_order(state_order_channel, d.Order_struct{floor, up, down, false, false}) {//This is true if the order is executed
 						update_lights(state_elev_channel)
+
 						sync_state(state_sync_channel)
 					}
+				} else {
+					fmt.Printf("No order found..\n")
 				}
 			}
 
 		case message := <-state_sync_channel: //Receives update from sync module
-			fmt.Println("State variable updated")
-			fmt.Println(State)
-			fmt.Println(message.SyncState)
-			fmt.Println("")
+			fmt.Println("Network FSM: State variable updated")
 			State = message.SyncState
 			update_lights(state_elev_channel)
 
 		case message := <-state_order_channel: //Receives update from order handler
 			if is_master {
-				fmt.Printf("Master: New order received: ")
 				update_state(message.Order)
 				sync_state(state_sync_channel)
-				fmt.Printf("Syncing state with slaves\n")
-				fmt.Println(State)
+				fmt.Printf("Network FSM: Syncing new state with slaves\n")
 				update_lights(state_elev_channel)
 			}
 		}
@@ -123,7 +116,7 @@ func enableMasterState(timer_chan chan bool) {
 
 	timer_chan <- true //Activate timer
 
-	fmt.Println("Enables master state")
+	fmt.Println("Network FSM: Enables master state")
 }
 
 //Removes master state
@@ -132,11 +125,13 @@ func removeMasterState(timer_chan chan bool) {
 
 	timer_chan <- false //Deactivate timer
 
-	fmt.Println("Removes master state")
+	fmt.Println("Network FSM: Removes master state")
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
 func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool) {
+
+	fmt.Printf("Network FSM: Redetermining master state: ")
 
 	update_connected_count(pu) //Updates connected elevator count
 
@@ -148,19 +143,20 @@ func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool) {
 	}
 
 	if id_lowest == u.StrToInt(id) { //If this elevator has lowest id, we become master
-		fmt.Printf("This is elevator with lowest id, (our id: %s)\n", id)
 		if !is_master {
+			fmt.Printf("Become MASTER\n")
 			enableMasterState(timer_chan)
 		} else {
-			fmt.Println("Already master, no change necessarry, still MASTER")
+			fmt.Printf("Already MASTER, still MASTER\n")
 		}
 
 	} else if is_master { //If we are master we remove this status, since an other master has arrived
-		fmt.Printf("This elevator does not have lowest id anymore, (our id: %s, other id: %s)\n", id, current_master_id)
+
 		current_master_id = fmt.Sprintf("%d", id_lowest) //Changes master ID
+		fmt.Printf("Removes master state, becomes SLAVE\n")
 		removeMasterState(timer_chan)
 	} else { //Do nothing
-		fmt.Println("Elevator network change detected, no change necessary, still SLAVE")
+		fmt.Printf("Already SLAVE, still SLAVE\n")
 	}
 
 }
@@ -171,12 +167,7 @@ func update_connected_count(pu peers.PeerUpdate) { //Updates connected elevator 
 
 func delegate_order(state_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
 
-	fmt.Println("-----Delegating order-----")
-
 	for i := 0; i < len(current_peers); i++ {
-
-		//For debugging..
-		fmt.Printf("Sending order to id: %s (%d of %d) - ", current_peers[i], i+1, len(current_peers))
 
 		//Notify order order_handler
 		message := d.State_order_message{order, current_peers[i], false}
@@ -186,12 +177,12 @@ func delegate_order(state_order_channel chan d.State_order_message, order d.Orde
 
 		case response := <-state_order_channel: //Receives order update from order handler
 			if response.ACK { //If we ACK the order has been executed
-				fmt.Println("Order Executed")
+				fmt.Printf("Order EXECUTED\n\n")
 				return true
 			}
 		}
 	}
-	fmt.Println("Not executed")
+	fmt.Printf("Order NOT executed, all slaves BUSY\n")
 	return false
 }
 
@@ -208,7 +199,9 @@ func sync_state(state_sync_channel chan d.State_sync_message) { //Syncs state wi
 }
 
 func update_lights(state_elev_channel chan d.State_elev_message) { //Tells elevator to update lights
-	fmt.Println("Netstate: update_lights() START")
 	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
-	fmt.Println("Netstate: update_lights() END")
+}
+
+func order_executed(order d.Order_struct) { //Updates state when an order has been executed
+	
 }

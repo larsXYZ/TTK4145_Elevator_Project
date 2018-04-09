@@ -13,7 +13,7 @@ import(
 var enabled = false
 
 func Run(timing_channel chan bool){ //Runs interrupts and respons to toggle message
-  fmt.Println("Timer module started")
+  fmt.Println("Timer modul: Initialized")
 
   //Starts internal timer
   ticker := time.NewTicker(time.Millisecond * 4000)
