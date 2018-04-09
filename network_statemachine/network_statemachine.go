@@ -11,6 +11,7 @@ import (
 	"../network_go/peers"
 	"../timer"
 	u "../utilities"
+	"time"
 )
 
 //=======States==========
@@ -26,7 +27,12 @@ var State = d.State{}
 //=======Functions=======
 
 //Runs statemachine logic
-func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d.State_sync_message, state_order_channel chan d.State_order_message, port int, id_in string) {
+func Run(state_elev_channel chan d.State_elev_message,
+	state_sync_channel chan d.State_sync_message,
+	state_order_channel chan d.State_order_message,
+	port int,
+	id_in string,
+	){
 
 	id = id_in
 
@@ -67,25 +73,26 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 				floor := -1 //-1 indicates that no new order has been found
 
 				for i := 0; i < 4; i++ { //Look through state
-					if State.Button_matrix.Up[i] {
+					if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){
 						up = true
 						floor = i
 						break
-					} else if State.Button_matrix.Down[i] {
+					} else if State.Button_matrix.Down[i] && time_check(State.Time_table_down[i]){
 						down = true
 						floor = i
 						break
 					}
 				}
 
-				order := d.Order_struct{floor, up, down, false, false} //Order to be executed
+				order := d.Order_struct{floor, up, down, false} //Order to be executed
 
 				if floor != -1 { //Delegate the found order
 					if delegate_order(state_order_channel, order) {//This is true if the order is executed
-						fmt.Printf("Network FSM: Order Delegated: Floor %d: \n", floor)
-						remove_order(order)
+
+						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", floor,int(time.Now().Unix()))
+
+						update_timetable(order)
 						sync_state(state_sync_channel)
-						update_lights(state_elev_channel)
 					}
 				}
 			}
@@ -96,11 +103,17 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 			update_lights(state_elev_channel)
 
 		case message := <-state_order_channel: //Receives update from order handler
-			if master_state {
-				update_state(message.Order)
+
+			if master_state && !message.Order.Fin { //It is a new order
+				add_order(message.Order)
 				sync_state(state_sync_channel)
-				fmt.Printf("Network FSM: Syncing new state with slaves\n")
 				update_lights(state_elev_channel)
+
+			} else if master_state && message.Order.Fin { //An order has been finished
+				fmt.Printf("AN ORDER HAS BEEN FINISHED, floor %d\n", message.Order.Floor)
+				clear_order(message.Order)
+				update_lights(state_elev_channel)
+				sync_state(state_sync_channel)
 			}
 		}
 	}
@@ -162,6 +175,19 @@ func update_connected_count(pu peers.PeerUpdate) { //Updates connected elevator 
 	connected_elevator_count = len(pu.Peers)
 }
 
+func update_timetable(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was delegated
+	time :=  int(time.Now().Unix())
+	if order.Up {
+		State.Time_table_up[order.Floor] = time
+	} else if order.Down {
+		State.Time_table_down[order.Floor] = time
+	}
+}
+
+func time_check(order_time int) bool {	//Checks if order time has expired. Then we must send another elevator
+	return int(time.Now().Unix())-order_time > 10 || order_time == 0
+}
+
 func delegate_order(state_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
 
 	for i := 0; i < len(current_peers); i++ {
@@ -181,7 +207,7 @@ func delegate_order(state_order_channel chan d.State_order_message, order d.Orde
 	return false
 }
 
-func update_state(order d.Order_struct) { //Updates state from new order
+func add_order(order d.Order_struct) { //Updates state from new order
 	if order.Up {
 		State.Button_matrix.Up[order.Floor] = true
 	} else if order.Down {
@@ -197,10 +223,12 @@ func update_lights(state_elev_channel chan d.State_elev_message) { //Tells eleva
 	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
 }
 
-func remove_order(order d.Order_struct) { //Updates state when an order has been executed
+func clear_order(order d.Order_struct) { //Updates state when an order has been executed
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
+		State.Time_table_up[order.Floor] = 0
 	} else if order.Down {
 		State.Button_matrix.Down[order.Floor] = false
+		State.Time_table_down[order.Floor] = 0
 	}
 }

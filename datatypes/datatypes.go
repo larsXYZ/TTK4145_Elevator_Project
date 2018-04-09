@@ -22,11 +22,6 @@ type State_order_message struct { //Used to communicate between net-statemachine
 	ACK      bool         //If order is executed this is true
 }
 
-type Order_elev_message struct { //Sent between order handler and elevator statemachine
-	Order     Order_struct //Order
-	BusyState bool         //Returns busystate
-}
-
 //---------Network types--------
 
 type Network_sync_message struct { //Used to Sync states between elevators
@@ -52,14 +47,15 @@ type Button_matrix_struct struct { //Used to keep track of which buttons are pre
 
 type State struct { //The state struct, this includes order list etc..
 	Button_matrix Button_matrix_struct
+	Time_table_up [4]int
+	Time_table_down [4]int
 }
 
 type Order_struct struct { //The order object
 	Floor int  //Floor which the elevator should move to
 	Up    bool //True if passanger wants to go up
 	Down  bool //True if passanger wants to go down
-	Cab   bool //True if cab button is pressed
-	Fin   bool
+	Fin   bool //True if order is completed
 }
 
 //===DATATYPE CONSTRUCTORS===

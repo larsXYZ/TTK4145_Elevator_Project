@@ -44,7 +44,10 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
 }
 
 //Synchronizes state with other elevators on network
-func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Network_sync_message, command d.State_sync_message, state_sync_channel chan d.State_sync_message){
+func sync_state(sync_tx_chn chan d.Network_sync_message,
+                sync_rx_chn chan d.Network_sync_message,
+                command d.State_sync_message,
+                state_sync_channel chan d.State_sync_message){
 
   //If this is only elevator, it doesnt need to sync state
   if command.Connected_count == 1{
@@ -69,6 +72,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Netw
     sync_tx_chn <- sync_message //Broadcast state
     for{
       select{
+
       case ack_mes := <- sync_rx_chn: //Receive ACK
         if !u.IdInArray(ack_mes.Sender,ack_elevators) && ack_mes.SyncAck{
           ack_elevators = append(ack_elevators,ack_mes.Sender) //Adds it to the list

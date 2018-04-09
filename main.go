@@ -34,26 +34,45 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netstate_sync_channel				:= make(chan d.State_sync_message,100)
-	netstate_elev_channel 			:= make(chan d.State_elev_message,100)
-	netstate_order_channel			:= make(chan d.State_order_message,100)
-	netorder_elev_channel				:= make(chan d.Order_elev_message,100)
+	netstate_sync_channel						:= make(chan d.State_sync_message,100)
+	netstate_elev_channel 					:= make(chan d.State_elev_message,100)
+
+	netstate_order_channel					:= make(chan d.State_order_message,100)
+	order_elev_ch_busypoll					:= make(chan bool ,100)
+	order_elev_ch_neworder					:= make(chan d.Order_struct,100)
+	order_elev_ch_finished					:= make(chan d.Order_struct,100)
 
 	fmt.Println("-----Activating Modules-----")
 
 	//Runs interface module
-	go elevator_statemachine.Run(netstate_elev_channel,netorder_elev_channel, elevSimIp)
+	go elevator_statemachine.Run(
+		netstate_elev_channel,
+		order_elev_ch_busypoll,
+		order_elev_ch_neworder,
+		order_elev_ch_finished,
+		elevSimIp)
+
 	//Waiting for elevator to find floor
-	time.Sleep(2*time.Second)
+	time.Sleep(5*time.Second)
 
 	//Run order handler module
-	go network_order_handler.Run(netstate_order_channel,netorder_elev_channel, id)
+	go network_order_handler.Run(
+		netstate_order_channel,
+		order_elev_ch_busypoll,
+		order_elev_ch_neworder,
+		order_elev_ch_finished,
+		id)
 
 	//Runs sync module
 	go sync.Run(netstate_sync_channel, id)
 
 	//Runs network statemachine
-	go network_statemachine.Run(netstate_elev_channel, netstate_sync_channel, netstate_order_channel, *portPtr, id)
+	go network_statemachine.Run(
+		netstate_elev_channel,
+		netstate_sync_channel,
+		netstate_order_channel,
+		*portPtr,
+		id)
 
 
 	//Waits

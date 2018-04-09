@@ -16,16 +16,23 @@ var id = ""
 
 //====== FUNCTIONS =======
 
-func Run(netstate_order_channel chan d.State_order_message, order_elev_channel chan d.Order_elev_message, id_in string) { //Starts order handler system
+//Starts order handler system
+func Run(
+	netstate_order_channel chan d.State_order_message,
+	order_elev_ch_busypoll chan bool,
+	order_elev_ch_neworder chan d.Order_struct,
+	order_elev_ch_finished chan d.Order_struct,
+	elev_id string,
+	){
 
 	//Store id
-	id = id_in
+	id = elev_id
 
-	//Set up Channels
-	delegate_order_tx_chn := make(chan d.Network_order_message, 1)
-	delegate_order_rx_chn := make(chan d.Network_order_message, 1)
-	new_order_tx_chn := make(chan d.Order_struct, 1)
-	new_order_rx_chn := make(chan d.Order_struct, 1)
+	//Set up networking channels
+	delegate_order_tx_chn := make(chan d.Network_order_message, 100)
+	delegate_order_rx_chn := make(chan d.Network_order_message, 100)
+	new_order_tx_chn := make(chan d.Order_struct, 100)
+	new_order_rx_chn := make(chan d.Order_struct, 100)
 
 	//Activate bcast library functions
 	go bcast.Transmitter(14002, delegate_order_tx_chn)
@@ -38,42 +45,49 @@ func Run(netstate_order_channel chan d.State_order_message, order_elev_channel c
 		select {
 
 		case net_message := <-delegate_order_rx_chn: //Receive order from net
-			give_order_to_elevator(order_elev_channel, delegate_order_tx_chn, net_message)
+			give_order_to_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, delegate_order_tx_chn, net_message)
 
 		case netstate_message := <-netstate_order_channel: //Receive order from netstatemachine
-			execution_state := send_order(delegate_order_tx_chn, delegate_order_rx_chn, netstate_message, order_elev_channel) //Tells slave to execute order
-			netstate_message.ACK = execution_state
+			netstate_message.ACK = send_order(delegate_order_tx_chn, //Tells slave to execute order
+																				delegate_order_rx_chn,
+																				netstate_message,
+																				order_elev_ch_neworder,
+																				order_elev_ch_busypoll)
 			netstate_order_channel <- netstate_message //Sends result to network statemachine
 
-		case elevstate_message := <-order_elev_channel: //Receive order from elev state (button press)
-			new_order_tx_chn <- elevstate_message.Order
+		case order := <-order_elev_ch_neworder: //Receive update from elevator. Finished or new order
+			new_order_tx_chn <- order
+
+		case order := <-order_elev_ch_finished: //Receive update from elevator. Finished or new order
+			new_order_tx_chn <- order
 
 		case new_order := <-new_order_rx_chn: //Receive new order update
-			//Send to network_statemachine
-			netstate_order_channel <- d.State_order_message{new_order, "", false}
-
+			netstate_order_channel <- d.State_order_message{new_order, "", false} //Send to network_statemachine
 		}
 	}
 }
 
 //Sends order to slave and ensures ACK
 //Returns true if slave executes
-func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.Network_order_message, netstate_message d.State_order_message, order_elev_channel chan d.Order_elev_message) bool {
+func send_order(order_tx_chn chan d.Network_order_message,
+	order_rx_chn chan d.Network_order_message,
+	netstate_message d.State_order_message,
+	order_elev_ch_neworder chan d.Order_struct,
+	order_elev_ch_busypoll chan bool,
+	) bool {
 
 	fmt.Printf("Order handler: Sending order to slave %s: ",netstate_message.Id_slave)
 
 	if netstate_message.Id_slave == id { //If we ask ourself, we poll elevator
 		fmt.Printf("Polling local elevator: ")
 		busystate := false
-		order_elev_channel <- d.Order_elev_message{netstate_message.Order, false}
+		order_elev_ch_busypoll <- true
 		select {
-		case response := <-order_elev_channel:
-			busystate = response.BusyState
+		case busystate =  <-order_elev_ch_busypoll:
 		}
-		if busystate {
-			fmt.Printf(" NACK received, [BUSY]\n\n")
-		} else {
-			fmt.Printf(" ACK received, [EXECUTED]\n\n")
+
+		if !busystate{
+			order_elev_ch_neworder <- netstate_message.Order
 		}
 
 		return !busystate
@@ -93,14 +107,12 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 			select {
 			case message := <-order_rx_chn: //Receive ACK
 				if message.ACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Printf("[ACK]\n\n")
 					return true
 				} else if message.NACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Printf("[NACK]\n\n")
 					return false
 				}
 
-			case <-timeOUT.C: //If we do not get response withing a timelimit we resend
+			case <-timeOUT.C: //If we time out we
 				fmt.Printf("|SYNC TIMEOUT| ")
 				return false
 			}
@@ -108,7 +120,13 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 	}
 }
 
-func give_order_to_elevator(order_elev_channel chan d.Order_elev_message, delegate_order_tx_chn chan d.Network_order_message, net_message d.Network_order_message) { //Asks elevator if it can execute order, and gives result back
+//Asks elevator if it can execute order, and gives result back
+func give_order_to_elevator(
+	order_elev_ch_neworder chan d.Order_struct,
+	order_elev_ch_busypoll chan bool,
+	delegate_order_tx_chn chan d.Network_order_message,
+	net_message d.Network_order_message){
+
 	if !net_message.ACK && !net_message.NACK { //Filters out ACK and NACK messages
 
 		if net_message.Id_slave == id { //Check if the message is for us
@@ -117,23 +135,25 @@ func give_order_to_elevator(order_elev_channel chan d.Order_elev_message, delega
 
 			// ASK ELEVATOR STATEMACHINE IF IT CAN EXECUTE ORDER NOW
 			busystate := false
-			order_elev_channel <- d.Order_elev_message{net_message.Order, false}
+			order_elev_ch_busypoll <- true
 			select {
-			case response := <-order_elev_channel:
-				busystate = response.BusyState
+			case busystate = <-order_elev_ch_busypoll:
 			}
 
-			//Print busystate
+			if !busystate{
+				order_elev_ch_neworder <- net_message.Order
+			}
+
 			if busystate {
 				fmt.Printf("[BUSY]\n\n")
 			} else {
 				fmt.Printf("[EXECUTES]\n\n")
 			}
 
+			//Sends ACK
 			net_message.ACK = !busystate
 			net_message.NACK = busystate
 			delegate_order_tx_chn <- net_message
-
 		}
 	}
 }

@@ -26,7 +26,6 @@ func init_floor_finder(floor_sensors_channel chan int) int {
   var current_direction elevio.MotorDirection = elevio.MD_Up
 	elevio.SetMotorDirection(current_direction)
 
-  //current_floor := -1
 	//Wait until we hit a floor
 	select {
 
@@ -41,7 +40,13 @@ func init_floor_finder(floor_sensors_channel chan int) int {
   return current_floor
 }
 
-func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d.Order_elev_message, simIp string){
+func Run(
+  state_elev_channel chan d.State_elev_message,
+  order_elev_ch_busypoll chan bool,
+	order_elev_ch_neworder chan d.Order_struct,
+	order_elev_ch_finished chan d.Order_struct,
+  simIp string,
+  ){
 
   //Initializes driver
   elevio.Init(simIp, numFloors)
@@ -54,18 +59,19 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
   go elevio.PollButtons(buttons)
   go elevio.PollFloorSensor(floor_sensors_channel)
 
+  //Determine starting floor
   current_floor := init_floor_finder(floor_sensors_channel)
 
   fmt.Printf("Elevator initialized: Floor determined: %d\n",current_floor)
 
-
+  //Start listening for commands and buttonpresses
   for{
     select{
 
     case button_event := <- buttons: //Reads button inputs
       //Create and send order update
-      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,button_event.Button == 2,false}
-      order_elev_channel <- d.Order_elev_message{new_order,false}
+      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
+      order_elev_ch_neworder <- new_order
 
 
     case message := <- state_elev_channel:
@@ -73,11 +79,11 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
         update_lights(message.Button_matrix)
       }
 
-    case order := <-order_elev_channel: //Respond to busyrequest, if busy send busy signal, else execute order
-      order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
-      if busystate == false{
-          go execute_order(order.Order,floor_sensors_channel)
-      }
+    case <- order_elev_ch_busypoll: //Sends busystate to ordehandler
+      order_elev_ch_busypoll <- busystate
+
+    case order := <-order_elev_ch_neworder: //Executes received order
+      go execute_order(order,floor_sensors_channel,order_elev_ch_finished)
     }
   }
 }
@@ -94,7 +100,7 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int){
     elevio.SetMotorDirection(elevio.MD_Down)
   }
 
-  finished := false //Wait untill we reach floor
+  finished := false //Wait until we reach floor
   for !finished{
 
     select{
@@ -111,13 +117,17 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int){
 
 }
 
-func execute_order(order d.Order_struct, floor_sensors_channel chan int) { //Executes order and stays busy while doing it
+func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_elev_ch_finished chan d.Order_struct) { //Executes order and stays busy while doing it
 
   busystate = true
 
   //Moves to floor
   elevio.SetDoorOpenLamp(false) //Just in case
   go_to_floor(order.Floor, floor_sensors_channel)
+
+  //Notify master that elevator has arrived
+  order.Fin = true
+  order_elev_ch_finished <- order
 
   //Open door and wait
   elevio.SetDoorOpenLamp(true)
