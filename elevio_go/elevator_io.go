@@ -169,6 +169,19 @@ func getFloor() int {
 	}
 }
 
+func GetFloorTest() int {
+	_mtx.Lock()
+	defer _mtx.Unlock()
+	_conn.Write([]byte{7, 0, 0, 0})
+	var buf [4]byte
+	_conn.Read(buf[:])
+	if buf[1] != 0 {
+		return int(buf[2])
+	} else {
+		return -1
+	}
+}
+
 func getStop() bool {
 	_mtx.Lock()
 	defer _mtx.Unlock()

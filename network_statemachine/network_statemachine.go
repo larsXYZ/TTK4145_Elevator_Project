@@ -81,12 +81,17 @@ func Run(state_elev_channel chan d.State_elev_message, state_sync_channel chan d
 					}
 				}
 
-				if floor != -1 { //Delegate the found order
-					fmt.Printf("Order found: floor %d\n", floor)
-					if delegate_order(state_order_channel, d.Order_struct{floor, up, down, false, false}) {//This is true if the order is executed
-						update_lights(state_elev_channel)
+				order := d.Order_struct{floor, up, down, false, false} //Order to be executed
 
+				if floor != -1 { //Delegate the found order
+					fmt.Printf("Order found: floor %d: \n", floor)
+					if delegate_order(state_order_channel, order) {//This is true if the order is executed
+						remove_order(order)
 						sync_state(state_sync_channel)
+						update_lights(state_elev_channel)
+						fmt.Printf("Order executed\n")
+					} else {
+						fmt.Printf("All elevators busy\n")
 					}
 				} else {
 					fmt.Printf("No order found..\n")
@@ -177,12 +182,10 @@ func delegate_order(state_order_channel chan d.State_order_message, order d.Orde
 
 		case response := <-state_order_channel: //Receives order update from order handler
 			if response.ACK { //If we ACK the order has been executed
-				fmt.Printf("Order EXECUTED\n\n")
 				return true
 			}
 		}
 	}
-	fmt.Printf("Order NOT executed, all slaves BUSY\n")
 	return false
 }
 
@@ -202,6 +205,10 @@ func update_lights(state_elev_channel chan d.State_elev_message) { //Tells eleva
 	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
 }
 
-func order_executed(order d.Order_struct) { //Updates state when an order has been executed
-	
+func remove_order(order d.Order_struct) { //Updates state when an order has been executed
+	if order.Up{
+		State.Button_matrix.Up[order.Floor] = false
+	} else if order.Down {
+		State.Button_matrix.Down[order.Floor] = false
+	}
 }

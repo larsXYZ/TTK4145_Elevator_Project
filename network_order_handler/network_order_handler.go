@@ -71,9 +71,9 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 			busystate = response.BusyState
 		}
 		if busystate {
-			fmt.Printf(" NACK received, local elevator BUSY\n\n")
+			fmt.Printf(" NACK received, [BUSY]\n\n")
 		} else {
-			fmt.Printf(" ACK received, order EXECUTED by local elevator\n\n")
+			fmt.Printf(" ACK received, [EXECUTED]\n\n")
 		}
 
 		return !busystate
@@ -93,10 +93,10 @@ func send_order(order_tx_chn chan d.Network_order_message, order_rx_chn chan d.N
 			select {
 			case message := <-order_rx_chn: //Receive ACK
 				if message.ACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Printf("[ACK], order EXECUTED\n\n")
+					fmt.Printf("[ACK]\n\n")
 					return true
-				} else if !message.ACK && message.Id_slave == netstate_message.Id_slave {
-					fmt.Printf("[NACK] , slave BUSY\n\n")
+				} else if message.NACK && message.Id_slave == netstate_message.Id_slave {
+					fmt.Printf("[NACK]\n\n")
 					return false
 				}
 
@@ -125,9 +125,9 @@ func give_order_to_elevator(order_elev_channel chan d.Order_elev_message, delega
 
 			//Print busystate
 			if busystate {
-				fmt.Printf("Local elevator BUSY\n\n")
+				fmt.Printf("[BUSY]\n\n")
 			} else {
-				fmt.Printf("Local elevator EXECUTES\n\n")
+				fmt.Printf("[EXECUTES]\n\n")
 			}
 
 			net_message.ACK = !busystate

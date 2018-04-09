@@ -9,7 +9,7 @@ import (
   "../elevio_go"
   d "../datatypes"
   "fmt"
-  //"time"
+  "time"
   //"sync"
   //"math/rand"
 )
@@ -18,7 +18,6 @@ import (
 var numFloors = 4
 var busystate = false
 var current_floor = -1
-//var _mtx sync.Mutex
 
 
 //Determines current floor at startup
@@ -57,7 +56,7 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
 
   current_floor := init_floor_finder(floor_sensors_channel)
 
-  fmt.Printf("Elevator FSM: Elevator initialized: Floor determined: %d",current_floor)
+  fmt.Printf("Elevator initialized: Floor determined: %d\n",current_floor)
 
 
   for{
@@ -77,33 +76,55 @@ func Run(state_elev_channel chan d.State_elev_message, order_elev_channel chan d
     case order := <-order_elev_channel: //Respond to busyrequest, if busy send busy signal, else execute order
       order_elev_channel <- d.Order_elev_message{d.Order_struct{},busystate}
       if busystate == false{
-          busystate = true
-          go go_to_floor(order.Order.Floor,floor_sensors_channel)
-
+          go execute_order(order.Order,floor_sensors_channel)
       }
     }
   }
 }
 
 func go_to_floor(target_floor int,floor_sensors_channel chan int){
-  if target_floor > current_floor{
+
+  if (target_floor == elevio.GetFloorTest()){ //If we already are at the floor we exit
+    return
+  }
+
+  if target_floor > current_floor{ //Activate motor
     elevio.SetMotorDirection(elevio.MD_Up)
   }else if target_floor < current_floor{
     elevio.SetMotorDirection(elevio.MD_Down)
   }
 
-  for busystate{
+  finished := false //Wait untill we reach floor
+  for !finished{
+
     select{
     case arrived_floor := <-floor_sensors_channel:
       current_floor = arrived_floor
       elevio.SetFloorIndicator(current_floor)
-      if target_floor == current_floor {
-      fmt.Println("Elevator FSM: Arrived target_floor")
+    }
+
+    if target_floor == current_floor {
       elevio.SetMotorDirection(elevio.MD_Stop)
-      busystate = false
-      }
+      finished = true
     }
   }
+
+}
+
+func execute_order(order d.Order_struct, floor_sensors_channel chan int) { //Executes order and stays busy while doing it
+
+  busystate = true
+
+  //Moves to floor
+  elevio.SetDoorOpenLamp(false) //Just in case
+  go_to_floor(order.Floor, floor_sensors_channel)
+
+  //Open door and wait
+  elevio.SetDoorOpenLamp(true)
+  time.Sleep(5*time.Second)
+  elevio.SetDoorOpenLamp(false)
+
+  busystate = false
 
 }
 
