@@ -18,6 +18,7 @@ import (
 var numFloors = 4
 var busystate = false
 var current_floor = -1
+//var order_queue = make([]int,numFloors)
 
 
 //Determines current floor at startup
@@ -40,6 +41,7 @@ func init_floor_finder(floor_sensors_channel chan int) int {
   return current_floor
 }
 
+//Runs elevator interface logic
 func Run(
   state_elev_channel chan d.State_elev_message,
   order_elev_ch_busypoll chan bool,
@@ -69,9 +71,14 @@ func Run(
     select{
 
     case button_event := <- buttons: //Reads button inputs
-      //Create and send order update
-      new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
-      order_elev_ch_neworder <- new_order
+      if button_event.Button == elevio.BT_Cab && busystate == false{
+        go execute_order(d.Order_struct{Floor: button_event.Floor},floor_sensors_channel,order_elev_ch_finished) //Executes cab orders
+      }else{
+        //Create and send order update
+        new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
+        order_elev_ch_neworder <- new_order
+
+      }
 
 
     case message := <- state_elev_channel:
