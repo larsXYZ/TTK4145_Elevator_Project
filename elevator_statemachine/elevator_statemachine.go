@@ -18,13 +18,14 @@ import (
 var numFloors = 4
 var busystate = false
 var current_floor = -1
-//var order_queue = make([]int,numFloors)
+var cab_queue = make([]int,0)
+var current_direction elevio.MotorDirection = elevio.MD_Stop
 
 
 //Determines current floor at startup
 func init_floor_finder(floor_sensors_channel chan int) int {
 
-  var current_direction elevio.MotorDirection = elevio.MD_Up
+  current_direction = elevio.MD_Up
 	elevio.SetMotorDirection(current_direction)
 
 	//Wait until we hit a floor
@@ -71,13 +72,14 @@ func Run(
     select{
 
     case button_event := <- buttons: //Reads button inputs
-      if button_event.Button == elevio.BT_Cab && busystate == false{
-        go execute_order(d.Order_struct{Floor: button_event.Floor},floor_sensors_channel,order_elev_ch_finished) //Executes cab orders
+      if button_event.Button == elevio.BT_Cab{
+        if busystate == false{
+          go execute_order(d.Order_struct{Floor: button_event.Floor},floor_sensors_channel,order_elev_ch_finished) //Executes cab orders
+        }
       }else{
         //Create and send order update
         new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
         order_elev_ch_neworder <- new_order
-
       }
 
 
@@ -151,9 +153,24 @@ func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
   for floor := 0; floor < numFloors; floor++{
     elevio.SetButtonLamp(0,floor, button_matrix.Up[floor])
   }
-
   //Down lights
   for floor := 0; floor < numFloors; floor++{
     elevio.SetButtonLamp(1,floor, button_matrix.Down[floor])
   }
+}
+
+func update_cab_queue(cab_order int) int{ //Updates cab queue
+
+  for i := 0; i < len(cab_queue); i++{ //Avoids duplicate cab orders
+    if cab_queue[i] == cab_order{
+      return cab_queue[0]
+    }
+  }
+  cab_queue = append(cab_queue,cab_order)
+
+  //if current_direction == elevio.MD_UP{
+  //  for
+  //}
+  return cab_queue[0]
+
 }
