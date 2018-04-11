@@ -21,8 +21,7 @@ import (
 func main() {
 
 	//Determines port number
-	portPtr := flag.Int("port", 15000, "an int")
-	elevPortPtr := flag.Int("elevport", 15657, "the port of the elevator sim")
+	elevPortPtr := flag.Int("elevport", 15001, "the port of the elevator sim")
 	flag.Parse()
 
 	//Create sim-elevator ip
@@ -34,10 +33,10 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netstate_sync_channel						:= make(chan d.State_sync_message,100)
-	netstate_elev_channel 					:= make(chan d.State_elev_message,100)
-
-	netstate_order_channel					:= make(chan d.State_order_message,100)
+	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
+	netfsm_sync_ch_error						:= make(chan bool,100)
+	netfsm_elev_channel 					:= make(chan d.State_elev_message,100)
+	netfsm_order_channel					:= make(chan d.State_order_message,100)
 	order_elev_ch_busypoll					:= make(chan bool ,100)
 	order_elev_ch_neworder					:= make(chan d.Order_struct,100)
 	order_elev_ch_finished					:= make(chan d.Order_struct,100)
@@ -46,34 +45,35 @@ func main() {
 
 	//Runs interface module
 	go elevator_statemachine.Run(
-		netstate_elev_channel,
+		netfsm_elev_channel,
 		order_elev_ch_busypoll,
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
 		elevSimIp)
 
-	//Waiting for elevator to find floor
-	time.Sleep(5*time.Second)
+	//Runs sync module
+	go sync.Run(netfsm_sync_ch_command, netfsm_sync_ch_error, id)
 
 	//Run order handler module
 	go network_order_handler.Run(
-		netstate_order_channel,
+		netfsm_order_channel,
 		order_elev_ch_busypoll,
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
 		id)
 
-	//Runs sync module
-	go sync.Run(netstate_sync_channel, id)
+	//Waiting for elevator to find floor
+	time.Sleep(5*time.Second)
 
 	//Runs network statemachine
 	go network_statemachine.Run(
-		netstate_elev_channel,
-		netstate_sync_channel,
-		netstate_order_channel,
-		*portPtr,
+		netfsm_elev_channel,
+		netfsm_sync_ch_command,
+		netfsm_sync_ch_error,
+		netfsm_order_channel,
 		id)
 
+	fmt.Println("-----Activation Completed-----")
 
 	//Waits
 	select {}

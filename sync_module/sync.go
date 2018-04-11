@@ -9,14 +9,18 @@ import(
   d "./../datatypes"
   "fmt"
   "time"
-  u "./../utilities"
+  //u "./../utilities"
+  r "math/rand"
+  "strings"
 )
 
 //States
 var id = ""
 
 //Runs the sync module
-func Run(state_sync_channel chan d.State_sync_message, id_in string){
+func Run(netfsm_sync_ch_command chan d.State_sync_message,
+        netfsm_sync_ch_error chan bool,
+        id_in string){
 
   id = id_in
 
@@ -34,10 +38,15 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
 
     //Responds to Network_message
     case sync_message := <-sync_rx_chn:
-      network_sync_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, sync_message)
+      network_sync_handler(sync_tx_chn, sync_rx_chn, netfsm_sync_ch_command, sync_message)
 
-    case command := <-state_sync_channel:
-      command_handler(sync_tx_chn, sync_rx_chn, state_sync_channel, command)
+    //Synchronizes state
+  case command := <-netfsm_sync_ch_command:
+
+      //Synchronize state, if we fail we request resync
+      if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_command)){
+        netfsm_sync_ch_error <- true
+      }
     }
   }
 
@@ -47,68 +56,88 @@ func Run(state_sync_channel chan d.State_sync_message, id_in string){
 func sync_state(sync_tx_chn chan d.Network_sync_message,
                 sync_rx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
-                state_sync_channel chan d.State_sync_message){
+                netfsm_sync_ch_command chan d.State_sync_message) bool{
 
-  //If this is only elevator, it doesnt need to sync state
-  if command.Connected_count == 1{
-    fmt.Println("Sync module: This is the only elevator, no need to sync state\n\n")
-    return
-  }
+  fmt.Printf("Sync module: Syncing state: ")
 
-  //Creates Network_sync_message
-  sync_message := d.Network_sync_message{command.SyncState, false, id}
+  //Converting connected elevator string to list
+  PeersList := strings.Split(command.Peers, ",")
 
-  //Broadcasts state and wait for ACK
-  for{
+  //Starting synchronization
+  for i := 0; i < len(PeersList); i++{
 
-    fmt.Printf("Sync module: Syncing state with %d other elevators: ", command.Connected_count-1)
+    targetId := PeersList[i]
 
-    //Array to keep track of elevators which have ACK-ed
-    ack_elevators := make([]string,0)
+    if (targetId == id){ //No need to sync with ourself
+      continue
+    }
 
-    //Setting up timout signal
-    timeOUT := time.NewTimer(time.Millisecond * 200)
+    timeout_count := 0
 
-    sync_tx_chn <- sync_message //Broadcast state
     for{
-      select{
 
-      case ack_mes := <- sync_rx_chn: //Receive ACK
-        if !u.IdInArray(ack_mes.Sender,ack_elevators) && ack_mes.SyncAck{
-          ack_elevators = append(ack_elevators,ack_mes.Sender) //Adds it to the list
-          fmt.Printf("%d", len(ack_elevators))
+      finished := false
+
+      //Sending sync-message to target
+      sync_tx_chn <- d.Network_sync_message{command.State, false, id, targetId}
+
+      //Setting up timout signal
+      timeOUT := time.NewTimer(time.Millisecond * 50)
+
+      //Waiting for response
+      for{
+
+        resend := false
+
+        select{
+
+        case msg := <- sync_rx_chn: //Check ack message
+          if (msg.Sender == targetId && msg.SyncAck && msg.Target == id){
+            fmt.Printf("%d,",i)
+            finished = true
+          }
+
+        case <-timeOUT.C: //Message timed out
+          fmt.Printf("X, ")
+          resend = true
+          timeout_count += 1
+
         }
 
-        if len(ack_elevators) >= command.Connected_count-1{ //If all elevators ack we are finished
-          fmt.Printf(": Sync completed, all %d elevators ACK\n", command.Connected_count-1)
-          return
-        }
+        if resend || finished { break }
+      }
 
-      case <-timeOUT.C: //If we do not get response withing a timelimit we resend
-        fmt.Printf("|TIMEOUT| ")
-        break;
+      if finished { break }
 
-      case command :=<-state_sync_channel: //If there is a network change while we sync we must sync again
-          sync_state(sync_tx_chn, sync_rx_chn, command, state_sync_channel)
-          return
+      if timeout_count > 5{
+        fmt.Printf(": [FAILED]\n")
+        return false
       }
     }
   }
+
+  fmt.Printf(": [COMPLETED]\n")
+  return true
+
 }
 
 //Handles received network messages
-func network_sync_handler(tx_chn chan d.Network_sync_message, rx_chn chan d.Network_sync_message, state_sync_channel chan d.State_sync_message, m d.Network_sync_message){
+func network_sync_handler(tx_chn chan d.Network_sync_message,
+                          rx_chn chan d.Network_sync_message,
+                          netfsm_sync_ch_command chan d.State_sync_message,
+                          m d.Network_sync_message){
 
-  if m.Sender != id && !m.SyncAck{ //Ignores messages sent by ourself and ACK messages
-    state_sync_channel <- d.State_sync_message{m.SyncState,0}
-
-    //Send ACK
-    fmt.Println("Sync module: State update received, sending ACK\n")
-    tx_chn <- d.Network_sync_message{d.State_init(),true,id}
+  //Simulating packetloss
+  packetloss := r.Intn(100) < 25
+  if packetloss{
+    fmt.Println("Sync module: SIMULATED PACKETLOSS")
+    return
   }
-}
 
-//Handles commands from network statemachine
-func command_handler(sync_tx_chn chan d.Network_sync_message, sync_rx_chn chan d.Network_sync_message, state_sync_channel chan d.State_sync_message, ms d.State_sync_message){
-  sync_state(sync_tx_chn, sync_rx_chn, ms, state_sync_channel)
+  if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
+
+    fmt.Println("Sync module: State update received, sending ACK\n")
+    netfsm_sync_ch_command <- d.State_sync_message{m.State,""}
+    tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
+  }
 }

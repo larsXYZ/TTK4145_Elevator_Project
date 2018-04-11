@@ -7,8 +7,8 @@ package datatypes
 //---------Channel types---------
 
 type State_sync_message struct { //Used to communicate between statemachine and sync module
-	SyncState       State //State variable to be synced
-	Connected_count int   //Number of connected elevators, important to make sure all elevators has been synchronized
+	State       		State //State variable to be synced
+	Peers						string //Special string containing the ids of the slaves to be synchronized
 }
 
 type State_elev_message struct { //Used to communicate between network statemachine and elevator statemachine
@@ -25,9 +25,10 @@ type State_order_message struct { //Used to communicate between net-statemachine
 //---------Network types--------
 
 type Network_sync_message struct { //Used to Sync states between elevators
-	SyncState State  //State variable to be synced
+	State State  //State variable to be synced
 	SyncAck   bool   //Signal acknowlinging receiving sync-message
 	Sender    string //ID of sender
+	Target		string //ID of target
 }
 
 type Network_order_message struct { //Used to send and receive orders

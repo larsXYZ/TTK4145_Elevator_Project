@@ -76,10 +76,7 @@ func send_order(order_tx_chn chan d.Network_order_message,
 	order_elev_ch_busypoll chan bool,
 	) bool {
 
-	fmt.Printf("Order handler: Sending order to slave %s: ",netstate_message.Id_slave)
-
 	if netstate_message.Id_slave == id { //If we ask ourself, we poll elevator
-		fmt.Printf("Polling local elevator: ")
 		busystate := false
 		order_elev_ch_busypoll <- true
 		select {
