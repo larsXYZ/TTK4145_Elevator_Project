@@ -128,7 +128,7 @@ func network_sync_handler(tx_chn chan d.Network_sync_message,
                           m d.Network_sync_message){
 
   //Simulating packetloss
-  packetloss := r.Intn(100) < 25
+  packetloss := r.Intn(100) < 50
   if packetloss{
     fmt.Println("Sync module: SIMULATED PACKETLOSS")
     return
