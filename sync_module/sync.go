@@ -9,8 +9,7 @@ import(
   d "./../datatypes"
   "fmt"
   "time"
-  //u "./../utilities"
-  r "math/rand"
+  u "./../utilities"
   "strings"
 )
 
@@ -127,12 +126,7 @@ func network_sync_handler(tx_chn chan d.Network_sync_message,
                           netfsm_sync_ch_command chan d.State_sync_message,
                           m d.Network_sync_message){
 
-  //Simulating packetloss
-  packetloss := r.Intn(100) < 50
-  if packetloss{
-    fmt.Println("Sync module: SIMULATED PACKETLOSS")
-    return
-  }
+if u.PacketLossSim(25){ return }
 
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 

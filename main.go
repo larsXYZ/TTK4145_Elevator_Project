@@ -35,8 +35,11 @@ func main() {
 	//Initializes channels
 	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
 	netfsm_sync_ch_error						:= make(chan bool,100)
-	netfsm_elev_channel 					:= make(chan d.State_elev_message,100)
-	netfsm_order_channel					:= make(chan d.State_order_message,100)
+
+	netfsm_elev_channel 						:= make(chan d.State_elev_message,100)
+	
+	netfsm_order_channel						:= make(chan d.State_order_message,100)
+
 	order_elev_ch_busypoll					:= make(chan bool ,100)
 	order_elev_ch_neworder					:= make(chan d.Order_struct,100)
 	order_elev_ch_finished					:= make(chan d.Order_struct,100)
@@ -51,6 +54,9 @@ func main() {
 		order_elev_ch_finished,
 		elevSimIp)
 
+	//Waiting for elevator to find floor
+	time.Sleep(5*time.Second)
+
 	//Runs sync module
 	go sync.Run(netfsm_sync_ch_command, netfsm_sync_ch_error, id)
 
@@ -61,9 +67,6 @@ func main() {
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
 		id)
-
-	//Waiting for elevator to find floor
-	time.Sleep(5*time.Second)
 
 	//Runs network statemachine
 	go network_statemachine.Run(

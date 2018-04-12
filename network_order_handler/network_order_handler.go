@@ -9,6 +9,8 @@ import (
 	"time"
 	d "../datatypes"
 	"../network_go/bcast"
+	"../network_statemachine"
+	u "../utilities"
 )
 
 //States
@@ -18,7 +20,7 @@ var id = ""
 
 //Starts order handler system
 func Run(
-	netstate_order_channel chan d.State_order_message,
+	netfsm_order_channel chan d.State_order_message,
 	order_elev_ch_busypoll chan bool,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_finished chan d.Order_struct,
@@ -29,10 +31,10 @@ func Run(
 	id = elev_id
 
 	//Set up networking channels
-	delegate_order_tx_chn := make(chan d.Network_order_message, 100)
-	delegate_order_rx_chn := make(chan d.Network_order_message, 100)
-	new_order_tx_chn := make(chan d.Order_struct, 100)
-	new_order_rx_chn := make(chan d.Order_struct, 100)
+	delegate_order_tx_chn := make(chan d.Network_delegate_order_message, 100)
+	delegate_order_rx_chn := make(chan d.Network_delegate_order_message, 100)
+	new_order_tx_chn := make(chan d.Network_new_order_message, 100)
+	new_order_rx_chn := make(chan d.Network_new_order_message, 100)
 
 	//Activate bcast library functions
 	go bcast.Transmitter(14002, delegate_order_tx_chn)
@@ -44,113 +46,165 @@ func Run(
 	for {
 		select {
 
-		case net_message := <-delegate_order_rx_chn: //Receive order from net
-			give_order_to_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, delegate_order_tx_chn, net_message)
+		//-----------------Receive order from net
+		case msg := <-delegate_order_rx_chn:
+ 		//Filters out ACK and NACK messages and checks if order is for this elevator
+		if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
 
-		case netstate_message := <-netstate_order_channel: //Receive order from netstatemachine
-			netstate_message.ACK = send_order(delegate_order_tx_chn, //Tells slave to execute order
-																				delegate_order_rx_chn,
-																				netstate_message,
-																				order_elev_ch_neworder,
-																				order_elev_ch_busypoll)
-			netstate_order_channel <- netstate_message //Sends result to network statemachine
+		//Otherwise we ask elevator if it can execute
+		execution_state := give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, msg.Order)
 
-		case order := <-order_elev_ch_neworder: //Receive update from elevator. Finished or new order
-			new_order_tx_chn <- order
+		//Sends ACK
+		msg.ACK = execution_state
+		msg.NACK = !execution_state
+		delegate_order_tx_chn <- msg
 
-		case order := <-order_elev_ch_finished: //Receive update from elevator. Finished or new order
-			new_order_tx_chn <- order
 
-		case new_order := <-new_order_rx_chn: //Receive new order update
-			netstate_order_channel <- d.State_order_message{new_order, "", false} //Send to network_statemachine
+		//-----------------Receive order from netFSM
+		case msg := <-netfsm_order_channel:
+			msg.ACK = send_order(delegate_order_tx_chn, //Tells slave to execute order
+													delegate_order_rx_chn,	//Save true if the order is executed
+													msg,
+													order_elev_ch_neworder,
+													order_elev_ch_busypoll)
+
+			netfsm_order_channel <- msg //Sends result to network statemachine
+
+
+		//-----------------Receive update from elevator. It has a new order to transmit to master
+	case new_order := <-order_elev_ch_neworder:
+			if network_statemachine.Master_state{
+				netfsm_order_channel <- d.State_order_message{new_order, "", false}
+			} else {
+				transmit_order(new_order, new_order_tx_chn, new_order_rx_chn)
+			}
+
+
+		//-----------------Receive new order update
+		case message := <-new_order_rx_chn:
+
+			//Simulates packetloss
+			if (u.PacketLossSim(30)) { continue }
+
+			//Filters out ACK messages
+			if (message.ACK) { continue }
+
+			//Send to network_statemachine
+			if (network_statemachine.Master_state){
+				netfsm_order_channel <- d.State_order_message{message.Order, "", false}
+				new_order_tx_chn <- d.Network_new_order_message{message.Order,true}
+				fmt.Printf("Order handler: Confirming order\n")
+			}
+
+
+		//-----------------Receive update from elevator. The elevator has finished an order, notify master
+		case finished_order := <-order_elev_ch_finished:
+			if network_statemachine.Master_state{
+				netfsm_order_channel <- d.State_order_message{finished_order, "", false}
+			}	else {
+				transmit_order(finished_order, new_order_tx_chn, new_order_rx_chn)
+			}
+
 		}
 	}
 }
 
 //Sends order to slave and ensures ACK
 //Returns true if slave executes
-func send_order(order_tx_chn chan d.Network_order_message,
-	order_rx_chn chan d.Network_order_message,
-	netstate_message d.State_order_message,
+func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
+	delegate_order_rx_chn chan d.Network_delegate_order_message,
+	netfsm_msg d.State_order_message,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_busypoll chan bool,
 	) bool {
 
-	if netstate_message.Id_slave == id { //If we ask ourself, we poll elevator
-		busystate := false
-		order_elev_ch_busypoll <- true
-		select {
-		case busystate =  <-order_elev_ch_busypoll:
-		}
-
-		if !busystate{
-			order_elev_ch_neworder <- netstate_message.Order
-		}
-
-		return !busystate
+	if netfsm_msg.Id_slave == id { //If we ask ourself, we give order to our elevator
+		return give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, netfsm_msg.Order)
 	}
 
-	//Broadcasts order and wait for ACK
+	//If not we broadcast order on network
 	for {
 
 		//Setting up timout signal
-		timeOUT := time.NewTimer(time.Millisecond * 300)
+		timeOUT := time.NewTimer(time.Millisecond * 100)
 
 		//Send order
-		order_tx_chn <- d.Network_order_message{netstate_message.Order, netstate_message.Id_slave, false, false}
+		delegate_order_tx_chn <- d.Network_delegate_order_message{netfsm_msg.Order, netfsm_msg.Id_slave, false, false}
 
 		//Wait for response
 		for {
 			select {
-			case message := <-order_rx_chn: //Receive ACK
-				if message.ACK && message.Id_slave == netstate_message.Id_slave {
+			case message := <-delegate_order_rx_chn: //Receive ACK
+				if message.ACK && message.Id_slave == netfsm_msg.Id_slave {
 					return true
-				} else if message.NACK && message.Id_slave == netstate_message.Id_slave {
+				} else if message.NACK && message.Id_slave == netfsm_msg.Id_slave {
 					return false
 				}
 
-			case <-timeOUT.C: //If we time out we
-				fmt.Printf("|SYNC TIMEOUT| ")
+			case <-timeOUT.C: //If we time out we return false
+				fmt.Printf("Order handler: send_order() timed out..\n")
 				return false
 			}
 		}
 	}
 }
 
-//Asks elevator if it can execute order, and gives result back
-func give_order_to_elevator(
+//Asks elevator if it can execute order, and returns true if order is executed
+func give_order_to_local_elevator(
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_busypoll chan bool,
-	delegate_order_tx_chn chan d.Network_order_message,
-	net_message d.Network_order_message){
+	order d.Order_struct) bool{
 
-	if !net_message.ACK && !net_message.NACK { //Filters out ACK and NACK messages
-
-		if net_message.Id_slave == id { //Check if the message is for us
-
-			fmt.Printf("Order handler: Order for local elevator received: ")
-
-			// ASK ELEVATOR STATEMACHINE IF IT CAN EXECUTE ORDER NOW
-			busystate := false
-			order_elev_ch_busypoll <- true
-			select {
-			case busystate = <-order_elev_ch_busypoll:
-			}
-
-			if !busystate{
-				order_elev_ch_neworder <- net_message.Order
-			}
-
-			if busystate {
-				fmt.Printf("[BUSY]\n\n")
-			} else {
-				fmt.Printf("[EXECUTES]\n\n")
-			}
-
-			//Sends ACK
-			net_message.ACK = !busystate
-			net_message.NACK = busystate
-			delegate_order_tx_chn <- net_message
-		}
+	//Poll elevator if it can execute order
+	busystate := false
+	order_elev_ch_busypoll <- true
+	select {
+	case busystate = <-order_elev_ch_busypoll:
 	}
+
+	//If the elevator is not busy we give it the new order
+	if !busystate{ order_elev_ch_neworder <- order }
+
+	return !busystate
+}
+
+func transmit_order(order d.Order_struct, //Transmits new order to master
+										tx_chn chan d.Network_new_order_message,
+										rx_chn chan d.Network_new_order_message){
+
+	fmt.Printf("Order handler: Sending order to master: ")
+	finished := false
+
+	//Tries to send, several times if we do not receive confirmation
+	for i := 0; i < 5; i++{
+
+		//Sending sync-message to target
+		tx_chn <- d.Network_new_order_message{order,false}
+
+		//Setting up timout signal
+		timeOUT := time.NewTimer(time.Millisecond * 50)
+
+		//Waiting for response
+		for{
+
+			resend := false
+
+			select{
+
+			case msg := <- rx_chn: //Check ack message
+				if (msg.ACK){
+					fmt.Printf(" [TRANSMITTED]\n")
+					finished = true
+				}
+
+			case <-timeOUT.C: //Message timed out
+				fmt.Printf("X, ")
+				resend = true
+
+			}
+			if resend || finished { break }
+		}
+		if finished { break }
+	}
+	if (!finished) { fmt.Printf(" [ORDER LOST]\n") }
 }

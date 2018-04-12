@@ -15,7 +15,7 @@ import (
 )
 
 //=======States==========
-var master_state = false
+var Master_state = false
 var current_master_id = ""
 var id = ""
 var localIp = ""
@@ -57,69 +57,61 @@ func Run(
 
 		select {
 
-		case pu := <-peers_rx_channel: //Receive update on connected elevators
-			reevaluate_master_state(pu, timer_chan)
+		//-----------------Receive update on connected elevators
+		case pu := <-peers_rx_channel:
+			reevaluate_Master_state(pu, timer_chan)
 			current_peers = pu.Peers
-			if master_state {
+			if Master_state {
 				sync_state(netfsm_sync_ch_command)
 			}
-			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, master_state) //Print current info
+			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, Master_state) //Print current info
 
-		case <-timer_chan: //Tests sending order and other things -----------------------------------
-			if master_state{
 
-				//Check if we have an order to distribute
-				up := false
-				down := false
-				floor := -1 //-1 indicates that no new order has been found
+		//-----------------Tests sending order and other things
+		case <-timer_chan:
+			if Master_state{
 
-				for i := 0; i < 4; i++ { //Look through state
-					if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){ //If order is present and time has run out we delegate order
+				distributed_order := find_order() //Finds new order to delegate
 
-						up = true
-						floor = i
-						break
+				if distributed_order.Floor != -1 { //Delegate the found order
+					if delegate_order(state_order_channel, distributed_order) {//This is true if the order is executed
 
-					} else if State.Button_matrix.Down[i] && time_check(State.Time_table_down[i]){ //If order is present and time has run out we delegate order
-
-						down = true
-						floor = i
-						break
-					}
-				}
-
-				order := d.Order_struct{floor, up, down, false} //Order to be executed
-
-				if floor != -1 { //Delegate the found order
-					if delegate_order(state_order_channel, order) {//This is true if the order is executed
-
-						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", floor,int(time.Now().Unix()))
-						update_timetable(order)
+						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
+						update_timetable(distributed_order)
 						sync_state(netfsm_sync_ch_command)
 					}
 				}
 			}
 
-		case message := <-netfsm_sync_ch_command: //Receives update from sync module
+
+		//-----------------Receives update from sync module
+		case message := <-netfsm_sync_ch_command:
 			fmt.Println("Network FSM: State variable updated")
 			State = message.State
 			update_lights(state_elev_channel)
 
-		case message := <-state_order_channel: //Receives update from order handler
 
-			if master_state && !message.Order.Fin { //It is a new order
-				add_order(message.Order)
-				sync_state(netfsm_sync_ch_command)
-				update_lights(state_elev_channel)
+		//-----------------Receives update from order handler
+		case message := <-state_order_channel:
 
-			} else if master_state && message.Order.Fin { //An order has been finished
+			if Master_state && !message.Order.Fin { //It is a new order
+
+				if new_order_check(message.Order) { //Checks if this order means we must update State
+					add_order(message.Order)
+					sync_state(netfsm_sync_ch_command)
+					update_lights(state_elev_channel)
+				}
+				
+			} else if Master_state && message.Order.Fin { //An order has been finished
 				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
 				sync_state(netfsm_sync_ch_command)
 				update_lights(state_elev_channel)
 			}
 
-		case <- netfsm_sync_ch_error: //If sync fails, we resync
+
+		//-----------------If sync fails, we resync
+		case <- netfsm_sync_ch_error:
 			fmt.Println("Network FSM: Resyncing")
 			sync_state(netfsm_sync_ch_command)
 		}
@@ -128,8 +120,7 @@ func Run(
 
 //Enables master state
 func enableMasterState(timer_chan chan bool) {
-	master_state = true
-	current_master_id = id
+	Master_state = true
 
 	timer_chan <- true //Activate timer
 
@@ -138,7 +129,7 @@ func enableMasterState(timer_chan chan bool) {
 
 //Removes master state
 func removeMasterState(timer_chan chan bool) {
-	master_state = false
+	Master_state = false
 
 	timer_chan <- false //Deactivate timer
 
@@ -146,7 +137,7 @@ func removeMasterState(timer_chan chan bool) {
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
-func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool) {
+func reevaluate_Master_state(pu peers.PeerUpdate, timer_chan chan bool) {
 
 	fmt.Printf("Network FSM: Redetermining master state: ")
 
@@ -160,14 +151,14 @@ func reevaluate_master_state(pu peers.PeerUpdate, timer_chan chan bool) {
 	}
 
 	if id_lowest == u.StrToInt(id) { //If this elevator has lowest id, we become master
-		if !master_state {
+		if !Master_state {
 			fmt.Printf("Become MASTER\n")
 			enableMasterState(timer_chan)
 		} else {
 			fmt.Printf("Already MASTER, still MASTER\n")
 		}
 
-	} else if master_state { //If we are master we remove this status, since an other master has arrived
+	} else if Master_state { //If we are master we remove this status, since an other master has arrived
 
 		current_master_id = fmt.Sprintf("%d", id_lowest) //Changes master ID
 		fmt.Printf("Removes master state, becomes SLAVE\n")
@@ -232,13 +223,7 @@ func add_order(order d.Order_struct) { //Updates state from new order
 func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs state with slave-elevators
 
 	//Converting connected elevator list to string for sync
-	current_peers_string := ""
-	for i := 0; i < len(current_peers); i++{
-		current_peers_string += current_peers[i]
-		if i < len(current_peers)-1{
-			current_peers_string += ","
-		}
-	}
+	current_peers_string :=  u.ListToString(current_peers)
 
 	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string} //Inform sync module
 }
@@ -255,4 +240,37 @@ func clear_order(order d.Order_struct) { //Updates state when an order has been 
 		State.Button_matrix.Down[order.Floor] = false
 		State.Time_table_down[order.Floor] = 0
 	}
+}
+
+func new_order_check(order d.Order_struct) bool { //Figures out new order means that we must sync state / update state
+	if order.Up{
+		return !State.Button_matrix.Up[order.Floor]
+	} else if order.Down{
+		return !State.Button_matrix.Down[order.Floor]
+	}
+	return true
+}
+
+func find_order() d.Order_struct{
+
+	up := false
+	down := false
+	floor := -1 //-1 indicates that no new order has been found
+
+	for i := 0; i < 4; i++ { //Look through state
+		if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){ //If order is present and time has run out we delegate order
+
+			up = true
+			floor = i
+			break
+
+		} else if State.Button_matrix.Down[i] && time_check(State.Time_table_down[i]){ //If order is present and time has run out we delegate order
+
+			down = true
+			floor = i
+			break
+		}
+	}
+
+	return d.Order_struct{floor, up, down, false} //Order to be executed
 }

@@ -25,17 +25,22 @@ type State_order_message struct { //Used to communicate between net-statemachine
 //---------Network types--------
 
 type Network_sync_message struct { //Used to Sync states between elevators
-	State State  //State variable to be synced
-	SyncAck   bool   //Signal acknowlinging receiving sync-message
-	Sender    string //ID of sender
-	Target		string //ID of target
+	State State  			//State variable to be synced
+	SyncAck   bool   	//Signal acknowlinging receiving sync-message
+	Sender    string 	//ID of sender
+	Target		string 	//ID of target
 }
 
-type Network_order_message struct { //Used to send and receive orders
+type Network_delegate_order_message struct { //Used to send and receive orders between orderhandlers
 	Order    Order_struct //The order to execute
 	Id_slave string       //The id of the slave to execute order
 	ACK      bool         //If slave CAN execute order this is returned
 	NACK     bool         //If slave CANT execute order this is returned
+}
+
+type Network_new_order_message struct { //Used to communicate new orders between orderhandlers, implements ACK's
+	Order Order_struct
+	ACK		bool
 }
 
 //---------Other types---------

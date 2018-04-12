@@ -6,6 +6,7 @@ package utilities
 
 import (
 	"strconv"
+	r "math/rand"
 )
 
 //=======Functions=======
@@ -37,4 +38,25 @@ func IdInArray(a string, list []string) bool {
         }
     }
     return false
+}
+
+//Turns list into string, elements seperated by ,
+func ListToString(list []string) string{
+
+	result := ""
+
+	for i := 0; i < len(list); i++{
+		result += list[i]
+		if i < len(list)-1{
+			result += ","
+		}
+	}
+
+	return result
+}
+
+//Simulating packetloss
+func PacketLossSim(chance int) bool {
+
+	return r.Intn(100) < chance
 }
