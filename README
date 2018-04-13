@@ -9,4 +9,4 @@ using channels.
 The software uses the go elevator driver (elevio.go) and the go network modules (bcast.go, localIp.go, and peers.go) given
 by the teaching team.
 
-![alt text](https://i.imgur.com/JkzRp8z.png)
+[alt text](https://i.imgur.com/JkzRp8z.png)
