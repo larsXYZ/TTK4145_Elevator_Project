@@ -18,11 +18,14 @@ by the teaching team.
 #### NET FSM
  - Has two primary states, master and non-master. 
  
- - MASTER:
+   MASTER:
+   
    -Takes in new orders in the network and delegates them to
     other elevators.
+   
    -Synchronizes state with other participants via the SYNC-module
    
-  - SLAVE:
+   SLAVE:
+   
    -Listens to sync module and is ready to take over as master should master die.
     
