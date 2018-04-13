@@ -1,12 +1,7 @@
 =========Elevator project TTK4145============
  -Lars M. Angelsen , Chris Arun Muralitharan-
 
-"Dream, believe, achieve" - Nicholas Cage 
-
-TODO Friday 16. March:
-
-Lars:
- - Work on statemachine and networking.
- 
- Chris:
-  - Work on elevator interface, lights, and order receiving.
+This software implements the requirements for the Elevator project for the course TTK4145 Real Time Programming.
+It is written in Golang, taking advantage of the languages concurrency features (channels & go routines). The
+software is divided into four modules, each with seperate threads and responsibilites. These modules then communicate
+using channels
