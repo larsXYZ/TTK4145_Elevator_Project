@@ -21,6 +21,7 @@ var busystate = false
 var current_floor = -1
 var cab_array = [4]bool{false,false,false,false}
 var current_direction elevio.MotorDirection = elevio.MD_Stop
+var motor = false
 
 //Determines current floor at startup
 func init_floor_finder(floor_sensors_channel chan int) int {
@@ -56,9 +57,13 @@ func Run(
   elevio.Init(simIp, numFloors)
 
   //Channel to driver
-  buttons := make(chan elevio.ButtonEvent)
+  buttons := make(chan elevio.ButtonEvent,100)
   floor_sensors_channel := make(chan int,100)
-  cab := make(chan elevio.ButtonEvent)
+  cab := make(chan elevio.ButtonEvent,100)
+
+  for floor:=0; floor < numFloors; floor++{
+    elevio.SetButtonLamp(elevio.BT_Cab,floor,false)
+  }
 
   //Starts tick for checking cab orders
   check_cab := time.Tick(time.Second)
@@ -106,6 +111,7 @@ func Run(
       if busystate == false{
         var next_target = next_cab_target()
         if next_target != -1{
+          fmt.Println("Elev state: Executing cab order: Floor",next_target)
           go execute_order(d.Order_struct{Floor: next_target},floor_sensors_channel,order_elev_ch_finished,false,cab) //Executes cab orders
         }
       }
@@ -113,11 +119,13 @@ func Run(
   }
 }
 
-func go_to_floor(target_floor int,floor_sensors_channel chan int, cab chan elevio.ButtonEvent){
+func go_to_floor(target_floor int,floor_sensors_channel chan int, cab chan elevio.ButtonEvent,master_order bool){
 
   if (target_floor == elevio.GetFloorTest()){ //If we already are at the floor we exit
     return
   }
+
+  motor = true
 
   if target_floor > current_floor{ //Activate motor
     current_direction = elevio.MD_Up
@@ -137,33 +145,37 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, cab chan elevi
 
     case button_event := <- cab:   //Checks if a pressed cab order should change target floor
       var next = next_cab_target()
-      if  next != -1 && button_event.Button == elevio.BT_Cab{
-        //fmt.Println("Changing target floor",next)
+      if  next != -1 && button_event.Button == elevio.BT_Cab && next != current_floor && !master_order{
+        fmt.Println("Changing target floor",next)
         target_floor = next
       }
     }
-
+    fmt.Println("Elev state:","target floor:",target_floor,"current floor:", current_floor)
+    fmt.Println("current direction:",current_direction)
     if target_floor == current_floor {
       //current_direction = elevio.MD_Stop
       elevio.SetMotorDirection(elevio.MD_Stop)
+      motor = false
       finished = true
     }
   }
 
 }
 
-func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_elev_ch_finished chan d.Order_struct,master_order bool,chab chan elevio.ButtonEvent) { //Executes order and stays busy while doing it
+func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_elev_ch_finished chan d.Order_struct,master_order bool,cab chan elevio.ButtonEvent) { //Executes order and stays busy while doing it
 
   busystate = true
 
   //Moves to floor
   elevio.SetDoorOpenLamp(false) //Just in case
-  go_to_floor(order.Floor, floor_sensors_channel,chab)
+  go_to_floor(order.Floor, floor_sensors_channel,cab,master_order)
 
   //Internal cab orders
   if !master_order{
+    order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
     cab_array[current_floor] = false
     elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
+    //fmt.Println("Elev state: Cab order finished: Floor",current_floor)
   }
 
   //Notify master that elevator has arrived
@@ -172,13 +184,19 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
     order_elev_ch_finished <- order
   }
 
-  //Open door and wait
-  elevio.SetDoorOpenLamp(true)
-  time.Sleep(5*time.Second)
-  elevio.SetDoorOpenLamp(false)
+  door()
 
   busystate = false
 
+}
+
+//Open door and wait
+func door(){
+  if motor == false{
+    elevio.SetDoorOpenLamp(true)
+    time.Sleep(4*time.Second)
+    elevio.SetDoorOpenLamp(false)
+  }
 }
 
 func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
