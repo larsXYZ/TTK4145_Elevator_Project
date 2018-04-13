@@ -48,6 +48,10 @@ func Run(
 
 		//-----------------Receive order from net
 		case msg := <-delegate_order_rx_chn:
+
+		//Simulates packetloss
+		if (u.PacketLossSim(70)) { continue }
+
  		//Filters out ACK and NACK messages and checks if order is for this elevator
 		if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
 
@@ -62,6 +66,7 @@ func Run(
 
 		//-----------------Receive order from netFSM
 		case msg := <-netfsm_order_channel:
+
 			msg.ACK = send_order(delegate_order_tx_chn, //Tells slave to execute order
 													delegate_order_rx_chn,	//Save true if the order is executed
 													msg,
@@ -123,28 +128,28 @@ func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
 	}
 
 	//If not we broadcast order on network
+	timeout_count := 0
 	for {
 
 		//Setting up timout signal
-		timeOUT := time.NewTimer(time.Millisecond * 100)
+		timeOUT := time.NewTimer(time.Millisecond * 50)
 
 		//Send order
 		delegate_order_tx_chn <- d.Network_delegate_order_message{netfsm_msg.Order, netfsm_msg.Id_slave, false, false}
 
-		//Wait for response
-		for {
-			select {
-			case message := <-delegate_order_rx_chn: //Receive ACK
-				if message.ACK && message.Id_slave == netfsm_msg.Id_slave {
-					return true
-				} else if message.NACK && message.Id_slave == netfsm_msg.Id_slave {
-					return false
-				}
-
-			case <-timeOUT.C: //If we time out we return false
-				fmt.Printf("Order handler: send_order() timed out..\n")
+		select {
+		case message := <-delegate_order_rx_chn: //Receive ACK
+			if message.ACK && message.Id_slave == netfsm_msg.Id_slave {
+				return true
+			} else if message.NACK && message.Id_slave == netfsm_msg.Id_slave {
 				return false
 			}
+
+		case <-timeOUT.C: //If we time out we return false
+
+			timeout_count += 1
+			fmt.Printf("Order handler: send_order() timed out.. %d\n", timeout_count)
+			if (timeout_count > 5) { return false }
 		}
 	}
 }
