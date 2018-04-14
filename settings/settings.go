@@ -4,7 +4,6 @@ package settings
 //---------------Contains constants used througout the program-----------------------------
 //-----------------------------------------------------------------------------------------
 
-
 //---------------NET_FSM
 const NO_FLOOR_FOUND = -1     //Used to show that no new order has been found
 const ORDER_INACTIVE = 0      //Used to show that an order is not active in the timetable

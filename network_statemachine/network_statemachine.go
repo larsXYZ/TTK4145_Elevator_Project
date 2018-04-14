@@ -32,7 +32,7 @@ func Run(
 	state_elev_channel chan d.State_elev_message,
 	netfsm_sync_ch_command chan d.State_sync_message,
 	netfsm_sync_ch_error chan bool,
-	state_order_channel chan d.State_order_message,
+	netfsm_order_channel chan d.State_order_message,
 	id_in string,
 	){
 
@@ -75,7 +75,7 @@ func Run(
 				distributed_order := find_order() //Finds new order to delegate
 
 				if distributed_order.Floor != s.NO_FLOOR_FOUND { //Delegate the found order
-					if delegate_order(state_order_channel, distributed_order) {//This is true if the order is executed
+					if delegate_order(netfsm_order_channel, distributed_order) {//This is true if the order is executed
 
 						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
 						update_timetable(distributed_order)
@@ -93,7 +93,7 @@ func Run(
 
 
 		//-----------------Receives update from order handler
-		case message := <-state_order_channel:
+		case message := <-netfsm_order_channel:
 
 			if Master_state && !message.Order.Fin { //It is a new order
 
@@ -194,17 +194,16 @@ func time_check(order_time int) bool {	//Checks if order time has expired. Then 
 	return result
 }
 
-func delegate_order(state_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
+func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
 
 	for i := 0; i < len(current_peers); i++ {
 
 		//Notify order order_handler
 		message := d.State_order_message{order, current_peers[i], false}
-		state_order_channel <- message
+		netfsm_order_channel <- message
 
 		select {
-
-		case response := <-state_order_channel: //Receives order update from order handler
+		case response := <-netfsm_order_channel: //Receives order update from order handler
 			if response.ACK { //If we ACK the order has been executed
 				return true
 			}
@@ -237,7 +236,9 @@ func clear_order(order d.Order_struct) { //Updates state when an order has been 
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
 		State.Time_table_up[order.Floor] = s.ORDER_INACTIVE
-	} else if order.Down {
+	}
+
+	if order.Down {
 		State.Button_matrix.Down[order.Floor] = false
 		State.Time_table_down[order.Floor] = s.ORDER_INACTIVE
 	}
@@ -252,24 +253,35 @@ func new_order_check(order d.Order_struct) bool { //Figures out new order means 
 	return true
 }
 
-func find_order() d.Order_struct{
+func find_order() d.Order_struct{ //Finds next order to delegate, depending on how old the order is
 
 	up := false
 	down := false
 	floor := s.NO_FLOOR_FOUND
 
+	current_time := int(time.Now().Unix())
+	wait_time := 0
+
 	for i := 0; i < 4; i++ { //Look through state
 		if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){ //If order is present and time has run out we delegate order
 
+			if(current_time - State.Time_table_up[i] < wait_time){ //Checks if this order is the olders one
+				continue
+			}
+
 			up = true
 			floor = i
-			break
+			wait_time = current_time - State.Time_table_up[i]
 
 		} else if State.Button_matrix.Down[i] && time_check(State.Time_table_down[i]){ //If order is present and time has run out we delegate order
 
+			if(current_time - State.Time_table_down[i] < wait_time){ //Checks if this order is the olders one
+				continue
+			}
+
 			down = true
 			floor = i
-			break
+			wait_time = current_time - State.Time_table_down[i]
 		}
 	}
 
