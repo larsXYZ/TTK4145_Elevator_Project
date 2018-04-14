@@ -12,6 +12,9 @@ const ORDER_TIMOUT_DELAY = 10 //[Seconds] The delay for when the system will dis
 const PEERS_PORT = 14592      //Port used for peers system
 const DELEGATE_ORDER_DELAY = 1000 //[Milliseconds] The between each time the master will (try to) delegate an order
 
+const PREFETCH_TIMEOUT_DELAY = 50    //[Milliseconds] Time until packet is regarded as lost and new packet sent
+const PREFETCH_MAX_TIMEOUT_COUNT = 5 //Number of times prefetch_state() will try to resend package
+
 //---------------ORDER_HANDLER
 const DELEGATE_ORDER_PORT = 14002   //Port used for delegate order system
 const NEW_ORDER_PORT = 14003        //Port used for new order system

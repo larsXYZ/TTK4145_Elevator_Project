@@ -38,6 +38,24 @@ func Run(
 
 	id = id_in
 
+	//Starts timer
+	timer_chan := make(chan bool)
+	go timer.Run(timer_chan, s.DELEGATE_ORDER_DELAY)
+
+	//Clear lights
+	update_lights( netfsm_elev_light_update)
+
+	//Prefetch channels
+	prefetch_hello_ch := make(chan bool, 100)
+	prefetch_state_ch := make(chan d.State, 1)
+
+	//Prefetch state
+	if prefetch_state(prefetch_hello_ch,prefetch_state_ch){
+		fmt.Println("Net FSM: Prefetched state")
+	} else {
+		fmt.Println("Net FSM: No existing state found")
+	}
+
 	//Channels for determining peers
 	peers_tx_channel := make(chan bool)
 	peers_rx_channel := make(chan peers.PeerUpdate)
@@ -46,17 +64,16 @@ func Run(
 	go peers.Receiver(s.PEERS_PORT, peers_rx_channel)
 	go peers.Transmitter(s.PEERS_PORT, id, peers_tx_channel)
 
-	//Starts timer
-	timer_chan := make(chan bool)
-	go timer.Run(timer_chan, s.DELEGATE_ORDER_DELAY)
-
-	//Clear lights
-	update_lights( netfsm_elev_light_update)
-
 	//Start regular operation
 	for {
 
 		select {
+
+		//-----------------Answers to hello message
+		case <-prefetch_hello_ch:
+			if Master_state {
+				prefetch_state_ch <- State
+			}
 
 		//-----------------Receive update on connected elevators
 		case pu := <-peers_rx_channel:
@@ -294,4 +311,35 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 		}
 	}
 	return d.Order_struct{floor, up, down, false} //Order to be executed
+}
+
+//Prefetches State from existing network (if there is one)
+func prefetch_state(prefetch_hello_ch chan bool, prefetch_state_ch chan d.State) bool{
+
+	fmt.Printf("Net FSM: Prefetching state ")
+
+	for i := 0; i < s.PREFETCH_MAX_TIMEOUT_COUNT; i++{
+
+		//Send hello message
+		prefetch_hello_ch <- true
+
+		//Setting up timout signal
+        timeOUT := time.NewTimer(time.Millisecond * s.PREFETCH_TIMEOUT_DELAY)
+
+		timeout := false
+		for !timeout{
+			select{
+			case new_state := <-prefetch_state_ch: //Receives new state from existing network
+				State = new_state
+				fmt.Printf("0 \n")
+				return true
+
+			case <-timeOUT.C:	//If we time out we try again / quit
+				fmt.Printf("X ")
+				timeout = true
+			}
+		}
+	}
+	fmt.Printf("\n")
+	return false //We did not receive a state
 }
