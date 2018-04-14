@@ -10,6 +10,7 @@ import (
 	d "../datatypes"
 	"../network_go/peers"
 	"../timer"
+	s "../settings"
 	u "../utilities"
 	"time"
 )
@@ -42,8 +43,8 @@ func Run(
 	peers_rx_channel := make(chan peers.PeerUpdate)
 
 	//Start peer system
-	go peers.Receiver(14592, peers_rx_channel)
-	go peers.Transmitter(14592, id, peers_tx_channel)
+	go peers.Receiver(s.PEERS_PORT, peers_rx_channel)
+	go peers.Transmitter(s.PEERS_PORT, id, peers_tx_channel)
 
 	//Starts timer
 	timer_chan := make(chan bool)
@@ -73,7 +74,7 @@ func Run(
 
 				distributed_order := find_order() //Finds new order to delegate
 
-				if distributed_order.Floor != -1 { //Delegate the found order
+				if distributed_order.Floor != s.NO_FLOOR_FOUND { //Delegate the found order
 					if delegate_order(state_order_channel, distributed_order) {//This is true if the order is executed
 
 						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
@@ -101,7 +102,7 @@ func Run(
 					sync_state(netfsm_sync_ch_command)
 					update_lights(state_elev_channel)
 				}
-				
+
 			} else if Master_state && message.Order.Fin { //An order has been finished
 				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
@@ -184,9 +185,9 @@ func update_timetable(order d.Order_struct){ //Updates timetable with order, kee
 
 func time_check(order_time int) bool {	//Checks if order time has expired. Then we must send another elevator
 
-	result := int(time.Now().Unix())-order_time > 10 || order_time == 0 //Order timeouts after 10 seconds
+	result := int(time.Now().Unix())-order_time > s.ORDER_TIMOUT_DELAY || order_time == s.ORDER_INACTIVE //Order timeouts after 10 seconds
 
-	if (result && order_time != 0) {
+	if (result && order_time != s.ORDER_INACTIVE) {
 		fmt.Printf("Network FSM: Order timed out\n")
 	}
 
@@ -235,10 +236,10 @@ func update_lights(state_elev_channel chan d.State_elev_message) { //Tells eleva
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
-		State.Time_table_up[order.Floor] = 0
+		State.Time_table_up[order.Floor] = s.ORDER_INACTIVE
 	} else if order.Down {
 		State.Button_matrix.Down[order.Floor] = false
-		State.Time_table_down[order.Floor] = 0
+		State.Time_table_down[order.Floor] = s.ORDER_INACTIVE
 	}
 }
 
@@ -255,7 +256,7 @@ func find_order() d.Order_struct{
 
 	up := false
 	down := false
-	floor := -1 //-1 indicates that no new order has been found
+	floor := s.NO_FLOOR_FOUND
 
 	for i := 0; i < 4; i++ { //Look through state
 		if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){ //If order is present and time has run out we delegate order

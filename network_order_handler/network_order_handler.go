@@ -11,6 +11,7 @@ import (
 	"../network_go/bcast"
 	"../network_statemachine"
 	u "../utilities"
+	s "../settings"
 )
 
 //States
@@ -37,10 +38,10 @@ func Run(
 	new_order_rx_chn := make(chan d.Network_new_order_message, 100)
 
 	//Activate bcast library functions
-	go bcast.Transmitter(14002, delegate_order_tx_chn)
-	go bcast.Receiver(14002, delegate_order_rx_chn)
-	go bcast.Transmitter(14003, new_order_tx_chn)
-	go bcast.Receiver(14003, new_order_rx_chn)
+	go bcast.Transmitter(s.DELEGATE_ORDER_PORT, delegate_order_tx_chn)
+	go bcast.Receiver(s.DELEGATE_ORDER_PORT, delegate_order_rx_chn)
+	go bcast.Transmitter(s.NEW_ORDER_PORT, new_order_tx_chn)
+	go bcast.Receiver(s.NEW_ORDER_PORT, new_order_rx_chn)
 
 	//Start operation
 	for {
@@ -50,7 +51,7 @@ func Run(
 		case msg := <-delegate_order_rx_chn:
 
 		//Simulates packetloss
-		if (u.PacketLossSim(70)) { continue }
+		if (u.PacketLossSim(s.DELEGATE_ORDER_PACKET_LOSS_SIM_CHANCE)) { continue }
 
  		//Filters out ACK and NACK messages and checks if order is for this elevator
 		if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
@@ -81,7 +82,7 @@ func Run(
 			if network_statemachine.Master_state{
 				netfsm_order_channel <- d.State_order_message{new_order, "", false}
 			} else {
-				transmit_order(new_order, new_order_tx_chn, new_order_rx_chn)
+				transmit_order_to_master(new_order, new_order_tx_chn, new_order_rx_chn)
 			}
 
 
@@ -89,7 +90,7 @@ func Run(
 		case message := <-new_order_rx_chn:
 
 			//Simulates packetloss
-			if (u.PacketLossSim(30)) { continue }
+			if (u.PacketLossSim(s.NEW_ORDER_PACKET_LOSS_SIM_CHANCE)) { continue }
 
 			//Filters out ACK messages
 			if (message.ACK) { continue }
@@ -107,7 +108,7 @@ func Run(
 			if network_statemachine.Master_state{
 				netfsm_order_channel <- d.State_order_message{finished_order, "", false}
 			}	else {
-				transmit_order(finished_order, new_order_tx_chn, new_order_rx_chn)
+				transmit_order_to_master(finished_order, new_order_tx_chn, new_order_rx_chn)
 			}
 
 		}
@@ -132,7 +133,7 @@ func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
 	for {
 
 		//Setting up timout signal
-		timeOUT := time.NewTimer(time.Millisecond * 50)
+		timeOUT := time.NewTimer(time.Millisecond * s.SEND_ORDER_TIMEOUT_DELAY)
 
 		//Send order
 		delegate_order_tx_chn <- d.Network_delegate_order_message{netfsm_msg.Order, netfsm_msg.Id_slave, false, false}
@@ -149,7 +150,7 @@ func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
 
 			timeout_count += 1
 			fmt.Printf("Order handler: send_order() timed out.. %d\n", timeout_count)
-			if (timeout_count > 5) { return false }
+			if (timeout_count > s.SEND_ORDER_MAX_TIMEOUT_COUNT) { return false }
 		}
 	}
 }
@@ -173,7 +174,7 @@ func give_order_to_local_elevator(
 	return !busystate
 }
 
-func transmit_order(order d.Order_struct, //Transmits new order to master
+func transmit_order_to_master(order d.Order_struct, //Transmits new order to master
 										tx_chn chan d.Network_new_order_message,
 										rx_chn chan d.Network_new_order_message){
 
@@ -181,13 +182,13 @@ func transmit_order(order d.Order_struct, //Transmits new order to master
 	finished := false
 
 	//Tries to send, several times if we do not receive confirmation
-	for i := 0; i < 5; i++{
+	for i := 0; i < s.TRANSMIT_ORDER_TO_MASTER_MAX_TIMOUT_COUNT; i++{
 
 		//Sending sync-message to target
 		tx_chn <- d.Network_new_order_message{order,false}
 
 		//Setting up timout signal
-		timeOUT := time.NewTimer(time.Millisecond * 50)
+		timeOUT := time.NewTimer(time.Millisecond * s.TRANSMIT_ORDER_TO_MASTER_TIMEOUT_DELAY)
 
 		//Waiting for response
 		for{

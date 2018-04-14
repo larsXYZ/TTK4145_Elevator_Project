@@ -11,6 +11,7 @@ import(
   "time"
   u "./../utilities"
   "strings"
+  s "../settings"
 )
 
 //States
@@ -28,8 +29,8 @@ func Run(netfsm_sync_ch_command chan d.State_sync_message,
   sync_rx_chn := make(chan d.Network_sync_message,1)
 
   //Activate bcast library functions
-  go bcast.Transmitter(16569, sync_tx_chn)
-  go bcast.Receiver(16569, sync_rx_chn)
+  go bcast.Transmitter(s.SYNC_PORT, sync_tx_chn)
+  go bcast.Receiver(s.SYNC_PORT, sync_rx_chn)
 
   fmt.Println("Sync module: Listening started")
   for{ //Handles messages over network and commands from network statemachine
@@ -81,7 +82,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
       sync_tx_chn <- d.Network_sync_message{command.State, false, id, targetId}
 
       //Setting up timout signal
-      timeOUT := time.NewTimer(time.Millisecond * 50)
+      timeOUT := time.NewTimer(time.Millisecond * s.SYNC_TIMEOUT_DELAY)
 
       //Waiting for response
       for{
@@ -108,7 +109,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
 
       if finished { break }
 
-      if timeout_count > 5{
+      if timeout_count > s.SYNC_MAX_TIMEOUT_COUNT{
         fmt.Printf(": [FAILED]\n")
         return false
       }
@@ -126,7 +127,7 @@ func network_sync_handler(tx_chn chan d.Network_sync_message,
                           netfsm_sync_ch_command chan d.State_sync_message,
                           m d.Network_sync_message){
 
-if u.PacketLossSim(25){ return }
+if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
 
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 

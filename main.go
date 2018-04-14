@@ -37,7 +37,7 @@ func main() {
 	netfsm_sync_ch_error						:= make(chan bool,100)
 
 	netfsm_elev_channel 						:= make(chan d.State_elev_message,100)
-	
+
 	netfsm_order_channel						:= make(chan d.State_order_message,100)
 
 	order_elev_ch_busypoll					:= make(chan bool ,100)
