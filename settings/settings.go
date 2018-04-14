@@ -11,8 +11,6 @@ const ORDER_INACTIVE = 0      //Used to show that an order is not active in the 
 const ORDER_TIMOUT_DELAY = 10 //[Seconds] The delay for when the system will dispatch another elevator to a floor
 const PEERS_PORT = 14592      //Port used for peers system
 
-
-
 //---------------ORDER_HANDLER
 const DELEGATE_ORDER_PORT = 14002   //Port used for delegate order system
 const NEW_ORDER_PORT = 14003        //Port used for new order system
@@ -31,3 +29,6 @@ const SYNC_PORT = 16569 //Port used in sync system
 const SYNC_TIMEOUT_DELAY = 50 //[Milliseconds] Time until packet is regarded as lost and new packet sent
 const SYNC_MAX_TIMEOUT_COUNT = 5 //Number of times sync_state() will try to resend package
 const SYNC_PACKET_LOSS_SIM_CHANCE = 25 //Chance of packetloss in sync system, for simulation
+
+//--------------ELEV_FSM
+const ELEV_CAB_TIMEOUT = 1000
