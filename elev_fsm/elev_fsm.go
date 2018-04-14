@@ -52,15 +52,15 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 
 //Runs elevator interface logic
 func Run(
-  state_elev_channel chan d.Button_matrix_struct,
+  netfsm_elev_light_update chan d.Button_matrix_struct,
   order_elev_ch_busypoll chan bool,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_finished chan d.Order_struct,
-  simIp string,
+  elevIp string,
   ){
 
   //Initializes driver
-  elevio.Init(simIp, numFloors)
+  elevio.Init(elevIp, numFloors)
 
   //Channel to driver
   buttons := make(chan elevio.ButtonEvent,100)  //Polls order buttons
@@ -98,7 +98,7 @@ func Run(
       if button_event.Button == elevio.BT_Cab{ //updates cab_array
         cab_array[button_event.Floor] = true
         elevio.SetButtonLamp(button_event.Button, button_event.Floor, true)
-        fmt.Println("Elev stateSending to cab channel")
+        fmt.Println("Elev_fsm: Sending to cab channel")
         interrupt <- false
 
       }else{
@@ -113,16 +113,16 @@ func Run(
       interrupt <- true
 
 
-    case Button_matrix := <- state_elev_channel:
+    case Button_matrix := <- netfsm_elev_light_update:
       update_lights(Button_matrix)
 
     case <- order_elev_ch_busypoll: //Sends busystate to ordehandler
       order_elev_ch_busypoll <- busystate
 
     case order := <-order_elev_ch_neworder: //Executes received order
-      fmt.Println("Elev state: Received order")
+      fmt.Println("Elev_fsm: Received order")
       if next_cab_target() == -1{  //Executes order only if there exist no cab orders
-        fmt.Println("Elev state: Executing master order")
+        fmt.Println("Elev_fsm: Executing master order")
         _mtx.Lock()
         busystate = true
         go execute_order(order,floor_sensors_channel,order_elev_ch_finished,true,interrupt)
@@ -134,7 +134,7 @@ func Run(
         if next_target != -1{
           _mtx.Lock()
           busystate = true
-          fmt.Println("Elev state: Executing cab order: Floor",next_target)
+          fmt.Println("Elev_fsm: Executing cab order: Floor",next_target)
           go execute_order(d.Order_struct{Floor: next_target},floor_sensors_channel,order_elev_ch_finished,false,interrupt) //Executes cab orders
         }
       }
@@ -174,17 +174,17 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan
         //target_floor =
         elevio.SetMotorDirection(current_direction)
       }else{
-        fmt.Println("Elev state: Received from cab channel")
+        fmt.Println("Elev_fsm: Received from cab channel")
         var next = next_cab_target()
         if next != -1 && next != current_floor && !master_order{
-          fmt.Println("Elev state: Changing target floor",next,cab_array)
+          fmt.Println("Elev_fsm: Changing target floor",next,cab_array)
           target_floor = next
           //master_order = false
         }
       }
     }
-    fmt.Println("Elev state:","target floor:",target_floor,"current floor:", current_floor)
-    fmt.Println("Elev state: current direction:",current_direction)
+    fmt.Println("Elev_fsm:","target floor:",target_floor,"current floor:", current_floor)
+    fmt.Println("Elev_fsm: current direction:",current_direction)
     if target_floor == current_floor {
       elevio.SetMotorDirection(elevio.MD_Stop)
       if current_floor == numFloors-1{   //Orientates elevator about its direction
@@ -212,7 +212,7 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
     order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
     cab_array[current_floor] = false
     elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
-    fmt.Println("Elev state: Cab order finished: Floor",current_floor)
+    fmt.Println("Elev_fsm: Cab order finished: Floor",current_floor)
   }
 
   //Notify master that elevator has arrived
