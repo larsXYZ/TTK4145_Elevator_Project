@@ -70,7 +70,7 @@ func main() {
 
 	//Runs network statemachine
 	go net_fsm.Run(
-		 netfsm_elev_light_update,
+		netfsm_elev_light_update,
 		netfsm_sync_ch_command,
 		netfsm_sync_ch_error,
 		netfsm_order_channel,

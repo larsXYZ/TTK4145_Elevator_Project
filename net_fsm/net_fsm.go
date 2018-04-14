@@ -29,7 +29,7 @@ var State = d.State{}
 
 //Runs statemachine logic
 func Run(
-	state_elev_channel chan d.Button_matrix_struct,
+	netfsm_elev_light_update chan d.Button_matrix_struct,
 	netfsm_sync_ch_command chan d.State_sync_message,
 	netfsm_sync_ch_error chan bool,
 	netfsm_order_channel chan d.State_order_message,
@@ -51,7 +51,7 @@ func Run(
 	go timer.Run(timer_chan)
 
 	//Clear lights
-	update_lights(state_elev_channel)
+	update_lights( netfsm_elev_light_update)
 
 	//Start regular operation
 	for {
@@ -89,7 +89,7 @@ func Run(
 		case message := <-netfsm_sync_ch_command:
 			fmt.Println("Network FSM: State variable updated")
 			State = message.State
-			update_lights(state_elev_channel)
+			update_lights( netfsm_elev_light_update)
 
 
 		//-----------------Receives update from order handler
@@ -101,14 +101,14 @@ func Run(
 					add_order(message.Order)
 					update_timetable_received(message.Order)
 					sync_state(netfsm_sync_ch_command)
-					update_lights(state_elev_channel)
+					update_lights( netfsm_elev_light_update)
 				}
 
 			} else if Master_state && message.Order.Fin { //An order has been finished
 				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
 				sync_state(netfsm_sync_ch_command)
-				update_lights(state_elev_channel)
+				update_lights( netfsm_elev_light_update)
 			}
 
 
@@ -238,8 +238,8 @@ func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs stat
 	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string} //Inform sync module
 }
 
-func update_lights(state_elev_channel chan d.Button_matrix_struct) { //Tells elevator to update lights
-	state_elev_channel <- State.Button_matrix
+func update_lights( netfsm_elev_light_update chan d.Button_matrix_struct) { //Tells elevator to update lights
+	 netfsm_elev_light_update <- State.Button_matrix
 }
 
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed

@@ -25,11 +25,11 @@ func Run(
 	order_elev_ch_busypoll chan bool,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_finished chan d.Order_struct,
-	elev_id string,
+	id_in string,
 	){
 
 	//Store id
-	id = elev_id
+	id =  id_in
 
 	//Set up networking channels
 	delegate_order_tx_chn := make(chan d.Network_delegate_order_message, 100)
