@@ -53,8 +53,12 @@ type Button_matrix_struct struct { //Used to keep track of which buttons are pre
 
 type State struct { //The state struct, this includes order list etc..
 	Button_matrix Button_matrix_struct
-	Time_table_up [4]int
-	Time_table_down [4]int
+
+	Time_table_received_up [4]int		//Holds the time of when an order was received
+	Time_table_received_down [4]int
+
+	Time_table_delegated_up [4]int	//Holds the time of when an order was delegated
+	Time_table_delegated_down [4]int
 }
 
 type Order_struct struct { //The order object
@@ -70,7 +74,6 @@ func Button_matrix_init() Button_matrix_struct { //Initializes a button matrix o
 	m := Button_matrix_struct{}
 	m.Up = [4]bool{false, false, false, false}
 	m.Down = [4]bool{false, false, false, false}
-	m.Cab = [4]bool{false, false, false, false}
 
 	return m
 }

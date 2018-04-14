@@ -78,7 +78,7 @@ func Run(
 					if delegate_order(netfsm_order_channel, distributed_order) {//This is true if the order is executed
 
 						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
-						update_timetable(distributed_order)
+						update_timetable_delegation(distributed_order)
 						sync_state(netfsm_sync_ch_command)
 					}
 				}
@@ -99,6 +99,7 @@ func Run(
 
 				if new_order_check(message.Order) { //Checks if this order means we must update State
 					add_order(message.Order)
+					update_timetable_received(message.Order)
 					sync_state(netfsm_sync_ch_command)
 					update_lights(state_elev_channel)
 				}
@@ -174,12 +175,21 @@ func update_connected_count(pu peers.PeerUpdate) { //Updates connected elevator 
 	connected_elevator_count = len(pu.Peers)
 }
 
-func update_timetable(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was delegated
+func update_timetable_received(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was received
 	time :=  int(time.Now().Unix())
 	if order.Up {
-		State.Time_table_up[order.Floor] = time
+		State.Time_table_received_up[order.Floor] = time
 	} else if order.Down {
-		State.Time_table_down[order.Floor] = time
+		State.Time_table_received_down[order.Floor] = time
+	}
+}
+
+func update_timetable_delegation(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was delegated
+	time :=  int(time.Now().Unix())
+	if order.Up {
+		State.Time_table_delegated_up[order.Floor] = time
+	} else if order.Down {
+		State.Time_table_delegated_down[order.Floor] = time
 	}
 }
 
@@ -235,12 +245,14 @@ func update_lights(state_elev_channel chan d.State_elev_message) { //Tells eleva
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
-		State.Time_table_up[order.Floor] = s.ORDER_INACTIVE
+		State.Time_table_delegated_up[order.Floor] = s.ORDER_INACTIVE
+		State.Time_table_received_up[order.Floor] = s.ORDER_INACTIVE
 	}
 
 	if order.Down {
 		State.Button_matrix.Down[order.Floor] = false
-		State.Time_table_down[order.Floor] = s.ORDER_INACTIVE
+		State.Time_table_delegated_down[order.Floor] = s.ORDER_INACTIVE
+		State.Time_table_received_up[order.Floor] = s.ORDER_INACTIVE
 	}
 }
 
@@ -260,28 +272,25 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 	floor := s.NO_FLOOR_FOUND
 
 	current_time := int(time.Now().Unix())
-	wait_time := 0
+	max_wait_time := -1
 
 	for i := 0; i < 4; i++ { //Look through state
-		if State.Button_matrix.Up[i] && time_check(State.Time_table_up[i]){ //If order is present and time has run out we delegate order
+		if State.Button_matrix.Up[i] && time_check(State.Time_table_delegated_up[i]){ //If order is present and time has run out we delegate order
 
-			if(current_time - State.Time_table_up[i] < wait_time){ //Checks if this order is the olders one
-				continue
+			if(current_time - State.Time_table_received_up[i] > max_wait_time){ //Checks if this order is the olders one
+				up = true
+				down = false
+				floor = i
+				max_wait_time = current_time - State.Time_table_received_up[i]
 			}
+		} else if State.Button_matrix.Down[i] && time_check(State.Time_table_delegated_down[i]){ //If order is present and time has run out we delegate order
 
-			up = true
-			floor = i
-			wait_time = current_time - State.Time_table_up[i]
-
-		} else if State.Button_matrix.Down[i] && time_check(State.Time_table_down[i]){ //If order is present and time has run out we delegate order
-
-			if(current_time - State.Time_table_down[i] < wait_time){ //Checks if this order is the olders one
-				continue
+			if(current_time - State.Time_table_received_down[i] > max_wait_time){ //Checks if this order is the olders one
+				down = true
+				up = false
+				floor = i
+				max_wait_time = current_time - State.Time_table_received_down[i]
 			}
-
-			down = true
-			floor = i
-			wait_time = current_time - State.Time_table_down[i]
 		}
 	}
 
