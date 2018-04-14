@@ -201,20 +201,21 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
   go_to_floor(order.Floor, floor_sensors_channel,interrupt,master_order)
 
   //Internal cab orders
-  //if !master_order{
-  order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
-  cab_array[current_floor] = false
-  elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
-  fmt.Println("Elev state: Cab order finished: Floor",current_floor)
-  //}
+  if !master_order{
+    fmt.Println(d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true})
+    order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
+    cab_array[current_floor] = false
+    elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
+    fmt.Println("Elev state: Cab order finished: Floor",current_floor)
+  }
 
   //Notify master that elevator has arrived
-  /*if master_order{
+  if master_order{
     cab_array[current_floor] = false
     elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
     order.Fin = true
     order_elev_ch_finished <- order
-  }*/
+  }
 
   door()
 
