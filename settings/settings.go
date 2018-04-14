@@ -10,6 +10,7 @@ const ORDER_INACTIVE = 0      //Used to show that an order is not active in the 
 
 const ORDER_TIMOUT_DELAY = 10 //[Seconds] The delay for when the system will dispatch another elevator to a floor
 const PEERS_PORT = 14592      //Port used for peers system
+const DELEGATE_ORDER_DELAY = 1000 //[Milliseconds] The between each time the master will (try to) delegate an order
 
 //---------------ORDER_HANDLER
 const DELEGATE_ORDER_PORT = 14002   //Port used for delegate order system

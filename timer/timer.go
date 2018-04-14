@@ -1,7 +1,7 @@
 package timer
 
 //-----------------------------------------------------------------------------------------
-//---------------Generates timer interrupts on channel, can be turned on and of-------------------------------------
+//---------------Generates timer interrupts on channel, can be turned on and of------------
 //-----------------------------------------------------------------------------------------
 
 import(
@@ -11,10 +11,10 @@ import(
 //States
 var enabled = false
 
-func Run(timing_channel chan bool){ //Runs interrupts and respons to toggle message
+func Run(timing_channel chan bool, time_delay int){ //Runs interrupts and respons to toggle message
 
   //Starts internal timer
-  ticker := time.NewTicker(time.Millisecond * 1000)
+  ticker := time.NewTicker(time.Millisecond * time.Duration(time_delay))
 
   for{
     select{
@@ -28,8 +28,4 @@ func Run(timing_channel chan bool){ //Runs interrupts and respons to toggle mess
       enabled = state
     }
   }
-
-
-
-
 }

@@ -48,7 +48,7 @@ func Run(
 
 	//Starts timer
 	timer_chan := make(chan bool)
-	go timer.Run(timer_chan)
+	go timer.Run(timer_chan, s.DELEGATE_ORDER_DELAY)
 
 	//Clear lights
 	update_lights( netfsm_elev_light_update)
@@ -68,7 +68,7 @@ func Run(
 			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, Master_state) //Print current info
 
 
-		//-----------------Tests sending order and other things
+		//-----------------Delegates orders on regular timing intervals
 		case <-timer_chan:
 			if Master_state{
 
