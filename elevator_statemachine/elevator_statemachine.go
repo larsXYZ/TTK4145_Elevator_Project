@@ -66,7 +66,7 @@ func Run(
   buttons := make(chan elevio.ButtonEvent,100)  //Polls order buttons
   floor_sensors_channel := make(chan int,100)  //Polls floor sensors
   interrupt := make(chan bool,100)            //Interrupts an ongoing order
-  e_stop := make(chan bool, 100)
+  stop := make(chan bool, 100)
 
   for floor:=0; floor < numFloors; floor++{
     elevio.SetButtonLamp(elevio.BT_Cab,floor,false)
@@ -78,7 +78,7 @@ func Run(
 
   //Starts polling buttons and sensors
   go elevio.PollButtons(buttons)
-  go elevio.PollStopButton(e_stop)
+  go elevio.PollStopButton(stop)
   go elevio.PollFloorSensor(floor_sensors_channel)
 
 
@@ -107,7 +107,7 @@ func Run(
         order_elev_ch_neworder <- new_order
       }
 
-    case <- e_stop:
+    case <- stop:
       elevio.SetStopLamp(true)
       elevio.SetMotorDirection(elevio.MD_Stop)
       interrupt <- true
@@ -168,13 +168,21 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan
       current_floor = arrived_floor
       elevio.SetFloorIndicator(current_floor)
 
-    case <- interrupt:   //Checks if a pressed cab order should change target floor
-      fmt.Println("Elev state: Received from cab channel")
-      var next = next_cab_target()
-      if next != -1 && next != current_floor && !master_order{
-        fmt.Println("Elev state: Changing target floor",next,cab_array)
-        target_floor = next
-        //master_order = false
+    case stop := <- interrupt:   //Checks if a pressed cab order should change target floor or that estop is pressed
+      if stop == true{
+        fmt.Println("Emergency button pressed")
+        time.Sleep(5*time.Second)
+        fmt.Println("Continuing normal drift")
+        //target_floor =
+        elevio.SetMotorDirection(current_direction)
+      }else{
+        fmt.Println("Elev state: Received from cab channel")
+        var next = next_cab_target()
+        if next != -1 && next != current_floor && !master_order{
+          fmt.Println("Elev state: Changing target floor",next,cab_array)
+          target_floor = next
+          //master_order = false
+        }
       }
     }
     fmt.Println("Elev state:","target floor:",target_floor,"current floor:", current_floor)
