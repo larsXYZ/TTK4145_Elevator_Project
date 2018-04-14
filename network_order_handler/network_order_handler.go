@@ -9,7 +9,7 @@ import (
 	"time"
 	d "../datatypes"
 	"../network_go/bcast"
-	"../network_statemachine"
+	"../net_fsm"
 	u "../utilities"
 	s "../settings"
 )
@@ -79,7 +79,7 @@ func Run(
 
 		//-----------------Receive update from elevator. It has a new order to transmit to master
 	case new_order := <-order_elev_ch_neworder:
-			if network_statemachine.Master_state{
+			if  net_fsm.Master_state{
 				netfsm_order_channel <- d.State_order_message{new_order, "", false}
 			} else {
 				transmit_order_to_master(new_order, new_order_tx_chn, new_order_rx_chn)
@@ -95,8 +95,8 @@ func Run(
 			//Filters out ACK messages
 			if (message.ACK) { continue }
 
-			//Send to network_statemachine
-			if (network_statemachine.Master_state){
+			//Send to  net_fsm
+			if ( net_fsm.Master_state){
 				netfsm_order_channel <- d.State_order_message{message.Order, "", false}
 				new_order_tx_chn <- d.Network_new_order_message{message.Order,true}
 				fmt.Printf("Order handler: Confirming order\n")
@@ -105,7 +105,7 @@ func Run(
 
 		//-----------------Receive update from elevator. The elevator has finished an order, notify master
 		case finished_order := <-order_elev_ch_finished:
-			if network_statemachine.Master_state{
+			if  net_fsm.Master_state{
 				netfsm_order_channel <- d.State_order_message{finished_order, "", false}
 			}	else {
 				transmit_order_to_master(finished_order, new_order_tx_chn, new_order_rx_chn)

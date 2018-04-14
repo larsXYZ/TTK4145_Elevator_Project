@@ -1,4 +1,4 @@
-package network_statemachine
+package net_fsm
 
 //-----------------------------------------------------------------------------------------
 //--------------- Receives, synchronizes, and delegates orders. ---------------------------
@@ -29,7 +29,7 @@ var State = d.State{}
 
 //Runs statemachine logic
 func Run(
-	state_elev_channel chan d.State_elev_message,
+	state_elev_channel chan d.Button_matrix_struct,
 	netfsm_sync_ch_command chan d.State_sync_message,
 	netfsm_sync_ch_error chan bool,
 	netfsm_order_channel chan d.State_order_message,
@@ -238,8 +238,8 @@ func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs stat
 	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string} //Inform sync module
 }
 
-func update_lights(state_elev_channel chan d.State_elev_message) { //Tells elevator to update lights
-	state_elev_channel <- d.State_elev_message{State.Button_matrix, true}
+func update_lights(state_elev_channel chan d.Button_matrix_struct) { //Tells elevator to update lights
+	state_elev_channel <- State.Button_matrix
 }
 
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed
@@ -277,7 +277,7 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 	for i := 0; i < 4; i++ { //Look through state
 		if State.Button_matrix.Up[i] && time_check(State.Time_table_delegated_up[i]){ //If order is present and time has run out we delegate order
 
-			if(current_time - State.Time_table_received_up[i] > max_wait_time){ //Checks if this order is the olders one
+			if(current_time - State.Time_table_received_up[i] >= max_wait_time){ //Checks if this order is the olders one
 				up = true
 				down = false
 				floor = i
@@ -285,7 +285,7 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 			}
 		} else if State.Button_matrix.Down[i] && time_check(State.Time_table_delegated_down[i]){ //If order is present and time has run out we delegate order
 
-			if(current_time - State.Time_table_received_down[i] > max_wait_time){ //Checks if this order is the olders one
+			if(current_time - State.Time_table_received_down[i] >= max_wait_time){ //Checks if this order is the olders one
 				down = true
 				up = false
 				floor = i
@@ -293,6 +293,5 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 			}
 		}
 	}
-
 	return d.Order_struct{floor, up, down, false} //Order to be executed
 }

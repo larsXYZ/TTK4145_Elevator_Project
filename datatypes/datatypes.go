@@ -11,11 +11,6 @@ type State_sync_message struct { //Used to communicate between statemachine and 
 	Peers						string //Special string containing the ids of the slaves to be synchronized
 }
 
-type State_elev_message struct { //Used to communicate between network statemachine and elevator statemachine
-	Button_matrix Button_matrix_struct
-	UpdateLights  bool //True if we should update lights
-}
-
 type State_order_message struct { //Used to communicate between net-statemachine and order_handler
 	Order    Order_struct //The order sent
 	Id_slave string       //The id of the slave to execute order

@@ -1,4 +1,4 @@
-package elevator_statemachine
+package elev_fsm
 
 //-----------------------------------------------------------------------------------------
 //-------------------------------------------Controls elevator-----------------------------
@@ -52,7 +52,7 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 
 //Runs elevator interface logic
 func Run(
-  state_elev_channel chan d.State_elev_message,
+  state_elev_channel chan d.Button_matrix_struct,
   order_elev_ch_busypoll chan bool,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_finished chan d.Order_struct,
@@ -113,10 +113,8 @@ func Run(
       interrupt <- true
 
 
-    case message := <- state_elev_channel:
-      if (message.UpdateLights){  //Updates lights
-        update_lights(message.Button_matrix)
-      }
+    case Button_matrix := <- state_elev_channel:
+      update_lights(Button_matrix)
 
     case <- order_elev_ch_busypoll: //Sends busystate to ordehandler
       order_elev_ch_busypoll <- busystate

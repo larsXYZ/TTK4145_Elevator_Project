@@ -6,14 +6,14 @@ package main
 
 import (
 	d "./datatypes"
-	"./network_statemachine"
+	"./net_fsm"
 	"./network_go/localip"
 	"./sync_module"
 	"flag"
 	"os"
 	"fmt"
 	u "./utilities"
-	"./elevator_statemachine"
+	"./elev_fsm"
 	"./network_order_handler"
 	"time"
 )
@@ -21,11 +21,11 @@ import (
 func main() {
 
 	//Determines port number
-	elevPortPtr := flag.Int("elevport", 15001, "the port of the elevator sim")
+	elevPortPtr := flag.Int("port", 15657, "the port of the elevator")
 	flag.Parse()
 
-	//Create sim-elevator ip
-	elevSimIp := fmt.Sprintf("localhost:%d",*elevPortPtr)
+	//Create elevator ip
+	elevIp := fmt.Sprintf("localhost:%d",*elevPortPtr)
 
 	//Determine ip & id
 	localIp, _ := localip.LocalIP()
@@ -36,7 +36,7 @@ func main() {
 	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
 	netfsm_sync_ch_error						:= make(chan bool,100)
 
-	netfsm_elev_channel 						:= make(chan d.State_elev_message,100)
+	netfsm_elev_light_update				:= make(chan d.Button_matrix_struct,100)
 
 	netfsm_order_channel						:= make(chan d.State_order_message,100)
 
@@ -47,12 +47,12 @@ func main() {
 	fmt.Println("-----Activating Modules-----")
 
 	//Runs interface module
-	go elevator_statemachine.Run(
-		netfsm_elev_channel,
+	go elev_fsm.Run(
+		netfsm_elev_light_update,
 		order_elev_ch_busypoll,
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
-		elevSimIp)
+		elevIp)
 
 	//Waiting for elevator to find floor
 	time.Sleep(5*time.Second)
@@ -69,8 +69,8 @@ func main() {
 		id)
 
 	//Runs network statemachine
-	go network_statemachine.Run(
-		netfsm_elev_channel,
+	go net_fsm.Run(
+		 netfsm_elev_light_update,
 		netfsm_sync_ch_command,
 		netfsm_sync_ch_error,
 		netfsm_order_channel,
