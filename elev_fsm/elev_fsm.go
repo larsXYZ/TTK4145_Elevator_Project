@@ -14,7 +14,6 @@ import (
   s "../settings"
 )
 
-//--STATES
 var numFloors = 4
 var busystate = false   //True when elevator is doing an order
 var current_floor = -1
@@ -38,10 +37,13 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 	case floor := <-floor_sensors_channel:
 		current_floor = floor
 	}
+
   elevio.SetFloorIndicator(current_floor)
 
+	if current_floor == numFloors-1{
+    current_direction = elevio.MD_Down
+  }
 
-	current_direction = elevio.MD_Stop
 	elevio.SetMotorDirection(elevio.MD_Stop)
   return current_floor
 }
@@ -100,19 +102,19 @@ func Run(
 
 
     case Button_matrix := <- netfsm_elev_light_update:
-      update_lights(Button_matrix)
+      update_hall_lights(Button_matrix)
 
 
-    case <- order_elev_ch_busypoll: //Sends busystate to ordehandler
+    case <- order_elev_ch_busypoll: //Sends busystate to
       order_elev_ch_busypoll <- busystate
 
 
-    case order := <-order_elev_ch_neworder: //Executes received order
+    case received_order := <-order_elev_ch_neworder: //Executes received order
 
       if next_cab_target() == -1{  //Executes order only if there exist no cab orders
         _mtx.Lock()
         busystate = true
-        go execute_order(order,floor_sensors_channel,order_elev_ch_finished,true,interrupt)
+        go execute_order(received_order,floor_sensors_channel,order_elev_ch_finished,true,interrupt)
       }
 
     case <- check_cab: //Checks cab orders
@@ -190,7 +192,7 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
   elevio.SetDoorOpenLamp(false) //Just in case
   go_to_floor(order.Floor, floor_sensors_channel,interrupt,master_order)
 
-  //Updates cab array
+  //Updates cab
   if !master_order{
     order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
     cab_array[current_floor] = false
@@ -215,7 +217,6 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
 
 //Open door and wait
 func door(){
-
   if motor == false{
     elevio.SetDoorOpenLamp(true)
     time.Sleep(4*time.Second)
@@ -225,7 +226,7 @@ func door(){
 }
 
 //Updates lights
-func update_lights(button_matrix d.Button_matrix_struct){
+func update_hall_lights(button_matrix d.Button_matrix_struct){
 
   //Up lights
   for floor := 0; floor < numFloors; floor++{
