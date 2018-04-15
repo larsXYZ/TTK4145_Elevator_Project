@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 	"time"
+	s "../../settings"
 )
 
 type PeerUpdate struct {
@@ -14,8 +15,8 @@ type PeerUpdate struct {
 	Lost  []string
 }
 
-const interval = 15 * time.Millisecond
-const timeout = 100 * time.Millisecond
+const interval = s.PEERS_HEARTBEAT_INTERVAL * time.Millisecond
+const timeout = s.PEERS_TIMEOUT_INTERVAL * time.Millisecond
 
 func Transmitter(port int, id string, transmitEnable <-chan bool) {
 

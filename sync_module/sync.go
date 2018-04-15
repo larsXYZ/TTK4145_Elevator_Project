@@ -12,6 +12,7 @@ import(
   u "./../utilities"
   "strings"
   s "../settings"
+  "../net_fsm"
 )
 
 //States
@@ -25,8 +26,8 @@ func Run(netfsm_sync_ch_command chan d.State_sync_message,
   id = id_in
 
   //Set up Channels
-  sync_tx_chn := make(chan d.Network_sync_message,1)
-  sync_rx_chn := make(chan d.Network_sync_message,1)
+  sync_tx_chn := make(chan d.Network_sync_message,100)
+  sync_rx_chn := make(chan d.Network_sync_message,100)
 
   //Activate bcast library functions
   go bcast.Transmitter(s.SYNC_PORT, sync_tx_chn)
@@ -42,6 +43,9 @@ func Run(netfsm_sync_ch_command chan d.State_sync_message,
 
     //Synchronizes state
   case command := <-netfsm_sync_ch_command:
+      if (!command.Sync){
+        continue
+      }
 
       //Synchronize state, if we fail we request resync
       if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_command)){
@@ -58,7 +62,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
                 netfsm_sync_ch_command chan d.State_sync_message) bool{
 
-  fmt.Printf("Sync module: Syncing state: ")
+  fmt.Printf("Sync module: [Master state: %v] Syncing state: ", net_fsm.Master_state)
 
   //Converting connected elevator string to list
   PeersList := strings.Split(command.Peers, ",")
@@ -132,7 +136,7 @@ if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 
     fmt.Println("Sync module: State update received, sending ACK\n")
-    netfsm_sync_ch_command <- d.State_sync_message{m.State,""}
+    netfsm_sync_ch_command <- d.State_sync_message{m.State,"", false}
     tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
   }
 }

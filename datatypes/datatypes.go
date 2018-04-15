@@ -9,6 +9,7 @@ package datatypes
 type State_sync_message struct { //Used to communicate between statemachine and sync module
 	State       		State //State variable to be synced
 	Peers						string //Special string containing the ids of the slaves to be synchronized
+	Sync						bool		//True if we should sync state
 }
 
 type State_order_message struct { //Used to communicate between net-statemachine and order_handler
@@ -36,6 +37,11 @@ type Network_delegate_order_message struct { //Used to send and receive orders b
 type Network_new_order_message struct { //Used to communicate new orders between orderhandlers, implements ACK's
 	Order Order_struct
 	ACK		bool
+}
+
+type Network_fetch_message struct {
+	State State	//State to be synced
+	Hello bool	//True if this is an hello message
 }
 
 //---------Other types---------

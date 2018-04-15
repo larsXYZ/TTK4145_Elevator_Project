@@ -105,7 +105,7 @@ func Run(
 
 		//-----------------Receive update from elevator. The elevator has finished an order, notify master
 		case finished_order := <-order_elev_ch_finished:
-			if  net_fsm.Master_state{
+			if net_fsm.Master_state{
 				netfsm_order_channel <- d.State_order_message{finished_order, "", false}
 			}	else {
 				transmit_order_to_master(finished_order, new_order_tx_chn, new_order_rx_chn)

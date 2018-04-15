@@ -20,6 +20,8 @@ import (
 
 func main() {
 
+	fmt.Printf("WELCOME TO TTK4145 - ELEVATOR SOFTWARE - GROUP 78\n")
+
 	//Determines port number
 	elevPortPtr := flag.Int("port", 15657, "the port of the elevator")
 	flag.Parse()
@@ -34,11 +36,11 @@ func main() {
 
 	//Initializes channels
 	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
-	netfsm_sync_ch_error					:= make(chan bool,100)
+	netfsm_sync_ch_error						:= make(chan bool,100)
 
 	netfsm_elev_light_update				:= make(chan d.Button_matrix_struct,100)
 
-	netfsm_order_channel					:= make(chan d.State_order_message,100)
+	netfsm_order_channel						:= make(chan d.State_order_message,100)
 
 	order_elev_ch_busypoll					:= make(chan bool ,100)
 	order_elev_ch_neworder					:= make(chan d.Order_struct,100)
@@ -67,8 +69,6 @@ func main() {
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
 		id)
-
-	fmt.Println("ASDASDASDDASSDA")
 
 	//Runs net fsm
 	go net_fsm.Run(

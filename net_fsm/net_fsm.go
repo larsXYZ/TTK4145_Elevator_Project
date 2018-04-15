@@ -13,6 +13,7 @@ import (
 	s "../settings"
 	u "../utilities"
 	"time"
+	"../network_go/bcast"
 )
 
 //=======States==========
@@ -38,23 +39,29 @@ func Run(
 
 	id = id_in
 
-	//Starts timer
-	timer_chan := make(chan bool)
-	go timer.Run(timer_chan, s.DELEGATE_ORDER_DELAY)
+	//Starts delegate order timer
+	delegate_order_timer_chan := make(chan bool)
+	go timer.Run(delegate_order_timer_chan, s.DELEGATE_ORDER_DELAY)
 
 	//Clear lights
 	update_lights( netfsm_elev_light_update)
 
 	//Prefetch channels
-	prefetch_hello_ch := make(chan bool, 100)
-	prefetch_state_ch := make(chan d.State, 1)
+	fetch_rx_ch := make(chan d.Network_fetch_message, 1)
+	fetch_tx_ch := make(chan d.Network_fetch_message, 1)
+	go bcast.Transmitter(s.DELEGATE_ORDER_PORT, fetch_tx_ch)
+	go bcast.Receiver(s.DELEGATE_ORDER_PORT, fetch_rx_ch)
+
+	//Network heartbeat channels [Backup system]
+	//network_heartbeat_rx_ch := make(chan d.Network_fetch_message, 100)
+	//network_heartbeat_tx_ch := make(chan d.Network_fetch_message, 100)
+	//go bcast.Transmitter(s.NETWORK_HEARTBEAT_PORT, network_heartbeat_tx_ch)
+	//go bcast.Receiver(s.NETWORK_HEARTBEAT_PORT, network_heartbeat_rx_ch)
+	//network_heartbeat_timer_chan := make(chan bool)
+	//go timer.Run(network_heartbeat_timer_chan, s.DELEGATE_ORDER_DELAY)
 
 	//Prefetch state
-	if prefetch_state(prefetch_hello_ch,prefetch_state_ch){
-		fmt.Println("Net FSM: Prefetched state")
-	} else {
-		fmt.Println("Net FSM: No existing state found")
-	}
+	fetch_state(fetch_tx_ch,fetch_rx_ch)
 
 	//Channels for determining peers
 	peers_tx_channel := make(chan bool)
@@ -70,15 +77,21 @@ func Run(
 		select {
 
 		//-----------------Answers to hello message
-		case <-prefetch_hello_ch:
+		case <-fetch_rx_ch:
 			if Master_state {
-				prefetch_state_ch <- State
+				fetch_tx_ch <- d.Network_fetch_message{State,false}
 			}
 
 		//-----------------Receive update on connected elevators
 		case pu := <-peers_rx_channel:
-			reevaluate_Master_state(pu, timer_chan)
+
+			//Fetching existing state
+			if (len(current_peers) == 1){
+				fetch_state(fetch_tx_ch, fetch_rx_ch)
+			}
+
 			current_peers = pu.Peers
+			reevaluate_Master_state(delegate_order_timer_chan)
 			if Master_state {
 				sync_state(netfsm_sync_ch_command)
 			}
@@ -86,7 +99,8 @@ func Run(
 
 
 		//-----------------Delegates orders on regular timing intervals
-		case <-timer_chan:
+		case <-delegate_order_timer_chan:
+
 			if Master_state{
 
 				distributed_order := find_order() //Finds new order to delegate
@@ -94,7 +108,7 @@ func Run(
 				if distributed_order.Floor != s.NO_FLOOR_FOUND { //Delegate the found order
 					if delegate_order(netfsm_order_channel, distributed_order) {//This is true if the order is executed
 
-						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
+						//fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
 						update_timetable_delegation(distributed_order)
 						sync_state(netfsm_sync_ch_command)
 					}
@@ -114,6 +128,11 @@ func Run(
 
 			if Master_state && !message.Order.Fin { //It is a new order
 
+				if len(current_peers) < 2{ //We should not accept orders if there are fewer than two elevators connected
+					fmt.Printf("Net FSM: Order received, not enough elevators to ensure execution\n")
+					continue
+				}
+
 				if new_order_check(message.Order) { //Checks if this order means we must update State
 					add_order(message.Order)
 					update_timetable_received(message.Order)
@@ -122,57 +141,62 @@ func Run(
 				}
 
 			} else if Master_state && message.Order.Fin { //An order has been finished
-				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
+				//fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
 				sync_state(netfsm_sync_ch_command)
-				update_lights( netfsm_elev_light_update)
+				update_lights(netfsm_elev_light_update)
 			}
 
 
 		//-----------------If sync fails, we resync
 		case <- netfsm_sync_ch_error:
-			fmt.Println("Network FSM: Resyncing")
-			sync_state(netfsm_sync_ch_command)
+			if Master_state{
+				fmt.Println("Network FSM: Resyncing")
+				sync_state(netfsm_sync_ch_command)
+			}
+
 		}
 	}
 }
 
 //Enables master state
-func enableMasterState(timer_chan chan bool) {
+func enableMasterState() {
 	Master_state = true
-
-	timer_chan <- true //Activate timer
 
 	fmt.Println("Network FSM: Enables master state")
 }
 
 //Removes master state
-func removeMasterState(timer_chan chan bool) {
+func removeMasterState() {
 	Master_state = false
-
-	timer_chan <- false //Deactivate timer
 
 	fmt.Println("Network FSM: Removes master state")
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
-func reevaluate_Master_state(pu peers.PeerUpdate, timer_chan chan bool) {
+func reevaluate_Master_state(delegate_order_timer_chan chan bool) {
 
 	fmt.Printf("Network FSM: Redetermining master state: ")
 
-	update_connected_count(pu) //Updates connected elevator count
+	if len(current_peers) < 2{ //We need to be slave if we are alone on the network
+		fmt.Printf("Only one elevator on network, disabling master state\n")
+		removeMasterState()
+		return
+	}
+	update_connected_count() //Updates connected elevator count
 
 	id_lowest := 999999999999999999 //Determines lowest id -> master
-	for i := 0; i < len(pu.Peers); i++ {
-		if id_lowest >= u.StrToInt(pu.Peers[i]) {
-			id_lowest = u.StrToInt(pu.Peers[i])
+	for i := 0; i < len(current_peers); i++ {
+		if id_lowest >= u.StrToInt(current_peers[i]) {
+			id_lowest = u.StrToInt(current_peers[i])
 		}
 	}
 
 	if id_lowest == u.StrToInt(id) { //If this elevator has lowest id, we become master
 		if !Master_state {
 			fmt.Printf("Become MASTER\n")
-			enableMasterState(timer_chan)
+			enableMasterState()
+			delegate_order_timer_chan <- true //Activate timer
 		} else {
 			fmt.Printf("Already MASTER, still MASTER\n")
 		}
@@ -181,15 +205,16 @@ func reevaluate_Master_state(pu peers.PeerUpdate, timer_chan chan bool) {
 
 		current_master_id = fmt.Sprintf("%d", id_lowest) //Changes master ID
 		fmt.Printf("Removes master state, becomes SLAVE\n")
-		removeMasterState(timer_chan)
+		removeMasterState()
+		delegate_order_timer_chan <- false //Activate timer
 	} else { //Do nothing
 		fmt.Printf("Already SLAVE, still SLAVE\n")
 	}
 
 }
 
-func update_connected_count(pu peers.PeerUpdate) { //Updates connected elevator counter
-	connected_elevator_count = len(pu.Peers)
+func update_connected_count() { //Updates connected elevator counter
+	connected_elevator_count = len(current_peers)
 }
 
 func update_timetable_received(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was received
@@ -251,8 +276,7 @@ func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs stat
 
 	//Converting connected elevator list to string for sync
 	current_peers_string :=  u.ListToString(current_peers)
-
-	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string} //Inform sync module
+	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string, true} //Inform sync module
 }
 
 func update_lights( netfsm_elev_light_update chan d.Button_matrix_struct) { //Tells elevator to update lights
@@ -274,11 +298,21 @@ func clear_order(order d.Order_struct) { //Updates state when an order has been 
 }
 
 func new_order_check(order d.Order_struct) bool { //Figures out new order means that we must sync state / update state
-	if order.Up{
-		return !State.Button_matrix.Up[order.Floor]
-	} else if order.Down{
-		return !State.Button_matrix.Down[order.Floor]
+
+	if !order.Fin{
+		if order.Up{
+			return !State.Button_matrix.Up[order.Floor]
+		} else if order.Down{
+			return !State.Button_matrix.Down[order.Floor]
+		}
+	} else{
+		if order.Up{
+			return State.Button_matrix.Up[order.Floor]
+		} else if order.Down{
+			return State.Button_matrix.Down[order.Floor]
+		}
 	}
+
 	return true
 }
 
@@ -314,25 +348,27 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 }
 
 //Prefetches State from existing network (if there is one)
-func prefetch_state(prefetch_hello_ch chan bool, prefetch_state_ch chan d.State) bool{
+func fetch_state(fetch_tx_ch chan d.Network_fetch_message, fetch_rx_ch chan d.Network_fetch_message){
 
 	fmt.Printf("Net FSM: Prefetching state ")
 
 	for i := 0; i < s.PREFETCH_MAX_TIMEOUT_COUNT; i++{
 
 		//Send hello message
-		prefetch_hello_ch <- true
+		fetch_tx_ch <- d.Network_fetch_message{d.State{}, true}
 
 		//Setting up timout signal
-        timeOUT := time.NewTimer(time.Millisecond * s.PREFETCH_TIMEOUT_DELAY)
+    timeOUT := time.NewTimer(time.Millisecond * s.PREFETCH_TIMEOUT_DELAY)
 
 		timeout := false
 		for !timeout{
 			select{
-			case new_state := <-prefetch_state_ch: //Receives new state from existing network
-				State = new_state
+			case message := <-fetch_rx_ch: //Receives new state from existing network
+			if !message.Hello{
+				State = message.State
 				fmt.Printf("0 \n")
-				return true
+				return
+			}
 
 			case <-timeOUT.C:	//If we time out we try again / quit
 				fmt.Printf("X ")
@@ -341,5 +377,4 @@ func prefetch_state(prefetch_hello_ch chan bool, prefetch_state_ch chan d.State)
 		}
 	}
 	fmt.Printf("\n")
-	return false //We did not receive a state
 }
