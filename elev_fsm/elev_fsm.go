@@ -12,20 +12,16 @@ import (
   "time"
   "sync"
   s "../settings"
-  //"../timer"
-  //"sync"
-  //"math/rand"
 )
 
 //--STATES
 var numFloors = 4
-var busystate = false
+var busystate = false   //True when elevator is doing an order
 var current_floor = -1
 var cab_array = [4]bool{false,false,false,false}
 var current_direction elevio.MotorDirection = elevio.MD_Stop
 var motor = false
 var _mtx sync.Mutex
-//var master_order = false
 
 //Determines current floor at startup
 func init_floor_finder(floor_sensors_channel chan int) int {
@@ -62,28 +58,24 @@ func Run(
   //Initializes driver
   elevio.Init(elevIp, numFloors)
 
-  //Channel to driver
+  //Channels
   buttons := make(chan elevio.ButtonEvent,100)  //Polls order buttons
   floor_sensors_channel := make(chan int,100)  //Polls floor sensors
   interrupt := make(chan bool,100)            //Interrupts an ongoing order
-  stop := make(chan bool, 100)
 
+  //Set all order lights off
   for floor:=0; floor < numFloors; floor++{
     elevio.SetButtonLamp(elevio.BT_Cab,floor,false)
+    elevio.SetButtonLamp(elevio.BT_HallUp,floor,false)
+    elevio.SetButtonLamp(elevio.BT_HallDown,floor,false)
   }
 
   //Starts tick for checking cab orders
-
   check_cab := time.Tick(s.ELEV_CAB_TIMEOUT*time.Millisecond)
 
   //Starts polling buttons and sensors
   go elevio.PollButtons(buttons)
-  go elevio.PollStopButton(stop)
   go elevio.PollFloorSensor(floor_sensors_channel)
-
-
-  //go elevio.PollButtons(cab)
-
 
   //Determine starting floor
   current_floor := init_floor_finder(floor_sensors_channel)
@@ -95,42 +87,39 @@ func Run(
     select{
 
     case button_event := <- buttons: //Reads button inputs
-      if button_event.Button == elevio.BT_Cab{ //updates cab_array
+
+      if button_event.Button == elevio.BT_Cab{ //Updates cab_array
         cab_array[button_event.Floor] = true
         elevio.SetButtonLamp(button_event.Button, button_event.Floor, true)
-        fmt.Println("Elev_fsm: Sending to cab channel")
         interrupt <- false
 
-      }else{
-        //Create and send order update
+      }else{  //Creates and send order update
         new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
         order_elev_ch_neworder <- new_order
       }
-
-    case <- stop:
-      elevio.SetStopLamp(true)
-      elevio.SetMotorDirection(elevio.MD_Stop)
-      interrupt <- true
 
 
     case Button_matrix := <- netfsm_elev_light_update:
       update_lights(Button_matrix)
 
+
     case <- order_elev_ch_busypoll: //Sends busystate to ordehandler
       order_elev_ch_busypoll <- busystate
 
+
     case order := <-order_elev_ch_neworder: //Executes received order
-      fmt.Println("Elev_fsm: Received order")
+
       if next_cab_target() == -1{  //Executes order only if there exist no cab orders
-        fmt.Println("Elev_fsm: Executing master order")
         _mtx.Lock()
         busystate = true
         go execute_order(order,floor_sensors_channel,order_elev_ch_finished,true,interrupt)
       }
 
-    case <- check_cab: //Polls cab orders
+    case <- check_cab: //Checks cab orders
+
       if busystate == false{
         var next_target = next_cab_target()
+
         if next_target != -1{
           _mtx.Lock()
           busystate = true
@@ -144,15 +133,17 @@ func Run(
 
 func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan bool, master_order bool){
 
-  if (target_floor == elevio.GetFloorTest()){ //If we already are at the floor we exit
+  if (target_floor == elevio.GetFloor()){ //If we already are at the floor we exit
     return
   }
 
   motor = true
 
-  if target_floor > current_floor{ //Activate motor
+  //Activate motor
+  if target_floor > current_floor{
     current_direction = elevio.MD_Up
     elevio.SetMotorDirection(current_direction)
+
   }else if target_floor < current_floor{
     current_direction = elevio.MD_Down
     elevio.SetMotorDirection(current_direction)
@@ -162,41 +153,34 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan
   for !finished{
 
     select{
+
     case arrived_floor := <-floor_sensors_channel:
       current_floor = arrived_floor
       elevio.SetFloorIndicator(current_floor)
 
-    case stop := <- interrupt:   //Checks if a pressed cab order should change target floor or that estop is pressed
-      if stop == true{
-        fmt.Println("Emergency button pressed")
-        time.Sleep(5*time.Second)
-        fmt.Println("Continuing normal drift")
-        //target_floor =
-        elevio.SetMotorDirection(current_direction)
-      }else{
-        fmt.Println("Elev_fsm: Received from cab channel")
+    case <- interrupt:   //Checks if a pressed cab order should change target floor
         var next = next_cab_target()
         if next != -1 && next != current_floor && !master_order{
-          fmt.Println("Elev_fsm: Changing target floor",next,cab_array)
+          fmt.Println("Elev_fsm: Changing target floor",next)
           target_floor = next
-          //master_order = false
         }
       }
-    }
-    fmt.Println("Elev_fsm:","target floor:",target_floor,"current floor:", current_floor)
-    fmt.Println("Elev_fsm: current direction:",current_direction)
+
     if target_floor == current_floor {
       elevio.SetMotorDirection(elevio.MD_Stop)
-      if current_floor == numFloors-1{   //Orientates elevator about its direction
+
+      //Orientate the direction of the elevator at endpoints
+      if current_floor == numFloors-1{
         current_direction = elevio.MD_Down
+
       }else if current_floor == 0{
         current_direction = elevio.MD_Up
       }
+
       motor = false
       finished = true
     }
   }
-
 }
 
 func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_elev_ch_finished chan d.Order_struct,master_order bool,interrupt chan bool) { //Executes order and stays busy while doing it
@@ -206,9 +190,8 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
   elevio.SetDoorOpenLamp(false) //Just in case
   go_to_floor(order.Floor, floor_sensors_channel,interrupt,master_order)
 
-  //Internal cab orders
+  //Updates cab array
   if !master_order{
-    fmt.Println(d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true})
     order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
     cab_array[current_floor] = false
     elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
@@ -232,14 +215,17 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
 
 //Open door and wait
 func door(){
+
   if motor == false{
     elevio.SetDoorOpenLamp(true)
     time.Sleep(4*time.Second)
     elevio.SetDoorOpenLamp(false)
   }
+
 }
 
-func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
+//Updates lights
+func update_lights(button_matrix d.Button_matrix_struct){
 
   //Up lights
   for floor := 0; floor < numFloors; floor++{
@@ -251,10 +237,8 @@ func update_lights(button_matrix d.Button_matrix_struct){ //Updates lights
   }
 }
 
-func next_cab_target() int{ //Finds the next target floor for cab orders
-  /*if current_floor == numFloors-1{
-    current_direction = elevio.MD_Down
-  }*/
+//Finds the next target floor for cab orders
+func next_cab_target() int{
 
   if current_direction == elevio.MD_Up{
     for floor := current_floor+1; floor < numFloors; floor++{
@@ -262,6 +246,7 @@ func next_cab_target() int{ //Finds the next target floor for cab orders
         return floor
       }
     }
+
   }else if current_direction == elevio.MD_Down{
     for floor := current_floor-1; floor >= 0; floor--{
       if cab_array[floor]{

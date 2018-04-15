@@ -163,7 +163,7 @@ func getFloor() int {
 	}
 }
 
-func GetFloorTest() int {
+func GetFloor() int {
 	_mtx.Lock()
 	defer _mtx.Unlock()
 	_conn.Write([]byte{7, 0, 0, 0})
