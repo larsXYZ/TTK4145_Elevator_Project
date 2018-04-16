@@ -1,4 +1,4 @@
-package network_order_handler
+package order_delegator
 
 //-----------------------------------------------------------------------------------------
 //---------------Sends/Receives orders to/from other elevators-----------------------------
@@ -19,7 +19,7 @@ var id = ""
 
 //====== FUNCTIONS =======
 
-//Starts order handler system
+//Starts order delegator system
 func Run(
 	netfsm_order_channel chan d.State_order_message,
 	order_elev_ch_busypoll chan bool,
@@ -85,7 +85,7 @@ func Run(
 			} else if net_fsm.Get_number_of_peers() > 1{
 				transmit_order_to_master(new_order, new_order_tx_chn, new_order_rx_chn)
 			} else {
-				fmt.Println("Order Handler: Alone on network, no Network-action allowed")
+				fmt.Println("Order Delegator: Alone on network, no Network-action allowed")
 			}
 
 
@@ -102,7 +102,7 @@ func Run(
 			if ( net_fsm.Check_master_state()){
 				netfsm_order_channel <- d.State_order_message{message.Order, "", false}
 				new_order_tx_chn <- d.Network_new_order_message{message.Order,true}
-				fmt.Printf("Order handler: Confirming order\n")
+				fmt.Printf("Order delegator: Confirming order\n")
 			}
 
 
@@ -152,7 +152,7 @@ func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
 		case <-timeOUT.C: //If we time out we return false
 
 			timeout_count += 1
-			fmt.Printf("Order handler: send_order() timed out.. %d\n", timeout_count)
+			fmt.Printf("Order delegator: send_order() timed out.. %d\n", timeout_count)
 			if (timeout_count > s.SEND_ORDER_MAX_TIMEOUT_COUNT) { return false }
 		}
 	}
@@ -181,7 +181,7 @@ func transmit_order_to_master(order d.Order_struct, //Transmits new order to mas
 										tx_chn chan d.Network_new_order_message,
 										rx_chn chan d.Network_new_order_message){
 
-	fmt.Printf("Order handler: Sending order to master: ")
+	fmt.Printf("Order delegator: Sending order to master: ")
 	finished := false
 
 	//Tries to send, several times if we do not receive confirmation

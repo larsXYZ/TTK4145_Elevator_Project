@@ -14,7 +14,7 @@ import (
 	"fmt"
 	u "./utilities"
 	"./elev_fsm"
-	"./network_order_handler"
+	"./order_delegator"
 	"time"
 )
 
@@ -64,7 +64,7 @@ func main() {
 							id)
 
 	//Run order handler module
-	go network_order_handler.Run(
+	go order_delegator.Run(
 		netfsm_order_channel,
 		order_elev_ch_busypoll,
 		order_elev_ch_neworder,
