@@ -35,7 +35,8 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netfsm_sync_ch_command					:= make(chan d.State_sync_message)
+	netfsm_sync_ch_tx_state					:= make(chan d.State_sync_message,100)
+	netfsm_sync_ch_rx_state					:= make(chan d.State,100)
 	netfsm_sync_ch_error						:= make(chan bool)
 
 	netfsm_order_channel						:= make(chan d.State_order_message,100)
@@ -57,7 +58,10 @@ func main() {
 	time.Sleep(5*time.Second)
 
 	//Runs sync module
-	go sync.Run(netfsm_sync_ch_command, netfsm_sync_ch_error, id)
+	go sync.Run(netfsm_sync_ch_tx_state,
+							netfsm_sync_ch_rx_state,
+							netfsm_sync_ch_error,
+							id)
 
 	//Run order handler module
 	go network_order_handler.Run(
@@ -69,7 +73,8 @@ func main() {
 
 	//Runs net fsm
 	go net_fsm.Run(
-		netfsm_sync_ch_command,
+		netfsm_sync_ch_tx_state,
+		netfsm_sync_ch_rx_state,
 		netfsm_sync_ch_error,
 		netfsm_order_channel,
 		id)

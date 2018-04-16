@@ -34,7 +34,8 @@ var State = d.State{}
 
 //Runs statemachine logic
 func Run(
-	netfsm_sync_ch_command chan d.State_sync_message,
+	netfsm_sync_ch_tx_state chan d.State_sync_message,
+	netfsm_sync_ch_rx_state chan d.State,
 	netfsm_sync_ch_error chan bool,
 	netfsm_order_channel chan d.State_order_message,
 	id_in string,
@@ -84,7 +85,7 @@ func Run(
 			connected_elevator_count = len(pu.Peers)
 			reevaluate_Master_state(pu, timer_chan,fetch_tx_ch,fetch_rx_ch)
 			if Check_master_state() {
-				sync_state(netfsm_sync_ch_command)
+				sync_state(netfsm_sync_ch_tx_state)
 			}
 			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, Master_state) //Print current info
 
@@ -100,16 +101,16 @@ func Run(
 
 						fmt.Printf("Network FSM: Order Delegated: Floor %d: at time: %d \n", distributed_order.Floor,int(time.Now().Unix()))
 						update_timetable_delegation(distributed_order)
-						sync_state(netfsm_sync_ch_command)
+						sync_state(netfsm_sync_ch_tx_state)
 					}
 				}
 			}
 
 
 		//-----------------Receives update from sync module
-		case message := <-netfsm_sync_ch_command:
+	case new_state := <-netfsm_sync_ch_rx_state:
 			fmt.Println("Network FSM: State variable updated")
-			State = message.State
+			State = new_state
 
 
 		//-----------------Receives update from order handler
@@ -125,20 +126,20 @@ func Run(
 				if new_order_check(message.Order) { //Checks if this order means we must update State
 					add_order(message.Order)
 					update_timetable_received(message.Order)
-					sync_state(netfsm_sync_ch_command)
+					sync_state(netfsm_sync_ch_tx_state)
 				}
 
 			} else if Check_master_state() && message.Order.Fin { //An order has been finished
 				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
-				sync_state(netfsm_sync_ch_command)
+				sync_state(netfsm_sync_ch_tx_state)
 			}
 
 
 		//-----------------If sync fails, we resync
 		case <- netfsm_sync_ch_error:
 			fmt.Println("Network FSM: Resyncing")
-			sync_state(netfsm_sync_ch_command)
+			sync_state(netfsm_sync_ch_tx_state)
 		}
 	}
 }
@@ -301,11 +302,11 @@ func add_order(order d.Order_struct) { //Updates state from new order
 	}
 }
 
-func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs state with slave-elevators
+func sync_state(netfsm_sync_ch_tx_state chan d.State_sync_message) { //Syncs state with slave-elevators
 
 	//Converting connected elevator list to string for sync
 	current_peers_string :=  u.ListToString(current_peers)
-	netfsm_sync_ch_command <- d.State_sync_message{State, current_peers_string, true} //Inform sync module
+	netfsm_sync_ch_tx_state <- d.State_sync_message{State, current_peers_string, true} //Inform sync module
 }
 
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed

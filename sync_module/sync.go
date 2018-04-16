@@ -19,9 +19,10 @@ import(
 var id = ""
 
 //Runs the sync module
-func Run(netfsm_sync_ch_command chan d.State_sync_message,
-        netfsm_sync_ch_error chan bool,
-        id_in string){
+func Run(netfsm_sync_ch_tx_state chan d.State_sync_message,
+	       netfsm_sync_ch_rx_state chan d.State,
+         netfsm_sync_ch_error chan bool,
+         id_in string){
 
   id = id_in
 
@@ -39,16 +40,17 @@ func Run(netfsm_sync_ch_command chan d.State_sync_message,
 
     //Responds to Network_message
     case sync_message := <-sync_rx_chn:
-      network_sync_handler(sync_tx_chn, sync_rx_chn, netfsm_sync_ch_command, sync_message)
+      network_sync_handler(sync_tx_chn, sync_rx_chn, netfsm_sync_ch_rx_state, sync_message)
 
     //Synchronizes state
-  case command := <-netfsm_sync_ch_command:
+  case command := <-netfsm_sync_ch_tx_state:
+
       if (!command.Sync){
         continue
       }
 
       //Synchronize state, if we fail we request resync
-      if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_command)){
+      if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_tx_state)){
         netfsm_sync_ch_error <- true
       }
     }
@@ -60,9 +62,9 @@ func Run(netfsm_sync_ch_command chan d.State_sync_message,
 func sync_state(sync_tx_chn chan d.Network_sync_message,
                 sync_rx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
-                netfsm_sync_ch_command chan d.State_sync_message) bool{
+                netfsm_sync_ch_tx_state chan d.State_sync_message) bool{
 
-  fmt.Printf("Sync module: [Master state: %v] Syncing state: ", command.State.Button_matrix)
+  fmt.Printf("Sync module: Syncing state: " )
 
   //Converting connected elevator string to list
   PeersList := strings.Split(command.Peers, ",")
@@ -106,10 +108,9 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
           resend = true
           timeout_count += 1
 
-        case <-netfsm_sync_ch_command: //There is a newer state to sync, we prioritize it
+        case <-netfsm_sync_ch_tx_state: //There is a newer state to sync, we prioritize it
           fmt.Printf(": [INTERRUPTED]\n")
           return false
-
         }
 
         if resend || finished { break }
@@ -127,13 +128,12 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
   fmt.Printf(": [COMPLETED]\n")
   elev_fsm.Update_hall_lights(command.State.Button_matrix)
   return true
-
 }
 
 //Handles received network messages
 func network_sync_handler(tx_chn chan d.Network_sync_message,
                           rx_chn chan d.Network_sync_message,
-                          netfsm_sync_ch_command chan d.State_sync_message,
+                          netfsm_sync_ch_rx_state chan d.State,
                           m d.Network_sync_message){
 
 if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
@@ -141,7 +141,7 @@ if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 
     fmt.Println("Sync module: State update received, sending ACK\n")
-    netfsm_sync_ch_command <- d.State_sync_message{m.State,"", false}
+    netfsm_sync_ch_rx_state <- m.State
     tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
     elev_fsm.Update_hall_lights(m.State.Button_matrix)
   }
