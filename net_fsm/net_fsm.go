@@ -15,10 +15,12 @@ import (
 	u "../utilities"
 	"time"
 	"math/rand"
+	"sync"
 )
 
 //=======States==========
 var Master_state = false
+var master_change sync.Mutex
 var current_master_id = ""
 var id = ""
 var localIp = ""
@@ -26,6 +28,7 @@ var current_peers = []string{}
 var peers_port = 0
 var connected_elevator_count = 1
 var State = d.State{}
+
 
 //=======Functions=======
 
@@ -40,6 +43,9 @@ func Run(
 
 	id = id_in
 
+	//Initializes mutexes
+	master_change = sync.Mutex{}
+
 	//Starts timer
 	timer_chan := make(chan bool)
 	go timer.Run(timer_chan, s.DELEGATE_ORDER_DELAY)
@@ -48,8 +54,8 @@ func Run(
 	update_lights( netfsm_elev_light_update)
 
 	//Prefetch channels
-	fetch_rx_ch := make(chan d.Network_fetch_message, 1)
-	fetch_tx_ch := make(chan d.Network_fetch_message, 1)
+	fetch_rx_ch := make(chan d.Network_fetch_message, 100)
+	fetch_tx_ch := make(chan d.Network_fetch_message, 100)
 	go bcast.Transmitter(s.FETCH_PORT, fetch_tx_ch)
 	go bcast.Receiver(s.FETCH_PORT, fetch_rx_ch)
 
@@ -72,7 +78,8 @@ func Run(
 
 		//-----------------Answers to hello message
 	case msg := <-fetch_rx_ch:
-			if Master_state && msg.Hello{
+			fmt.Println("HELLO MESSAGE RECEIVED")
+			if Check_master_state() && msg.Hello{
 				fetch_tx_ch <- d.Network_fetch_message{State,false}
 			}
 
@@ -81,7 +88,7 @@ func Run(
 			current_peers = pu.Peers
 			connected_elevator_count = len(pu.Peers)
 			reevaluate_Master_state(pu, timer_chan,fetch_tx_ch,fetch_rx_ch)
-			if Master_state {
+			if Check_master_state() {
 				sync_state(netfsm_sync_ch_command)
 			}
 			fmt.Printf("\nNetwork FSM: Network change detected: %q, %d, %v\n", pu.Peers, connected_elevator_count, Master_state) //Print current info
@@ -89,7 +96,7 @@ func Run(
 
 		//-----------------Delegates orders on regular timing intervals
 		case <-timer_chan:
-			if Master_state{
+			if Check_master_state(){
 
 				distributed_order := find_order() //Finds new order to delegate
 
@@ -108,7 +115,7 @@ func Run(
 		case message := <-netfsm_sync_ch_command:
 			fmt.Println("Network FSM: State variable updated")
 			State = message.State
-			update_lights( netfsm_elev_light_update)
+			update_lights(netfsm_elev_light_update)
 
 
 		//-----------------Receives update from order handler
@@ -119,7 +126,7 @@ func Run(
 				continue
 			}
 
-			if Master_state && !message.Order.Fin { //It is a new order
+			if Check_master_state() && !message.Order.Fin { //It is a new order
 
 				if new_order_check(message.Order) { //Checks if this order means we must update State
 					add_order(message.Order)
@@ -128,7 +135,7 @@ func Run(
 					update_lights( netfsm_elev_light_update)
 				}
 
-			} else if Master_state && message.Order.Fin { //An order has been finished
+			} else if message.Order.Fin { //An order has been finished
 				fmt.Printf("Network FSM: Order completed, floor %d, up: %v, down: %v\n", message.Order.Floor, message.Order.Up, message.Order.Down)
 				clear_order(message.Order)
 				sync_state(netfsm_sync_ch_command)
@@ -146,20 +153,35 @@ func Run(
 
 //Enables master state
 func enableMasterState(timer_chan chan bool) {
+
+	//Locking mutex
+	master_change.Lock()
+	defer master_change.Unlock()
+
 	Master_state = true
-
 	timer_chan <- true //Activate timer
-
 	fmt.Println("Network FSM: Enables master state")
 }
 
 //Removes master state
 func removeMasterState(timer_chan chan bool) {
+
+	//Locking mutex
+	master_change.Lock()
+	defer master_change.Unlock()
+
 	Master_state = false
-
 	timer_chan <- false //Deactivate timer
-
 	fmt.Println("Network FSM: Removes master state")
+}
+
+func Check_master_state() bool{
+
+	//Locking mutex
+	master_change.Lock()
+	defer master_change.Unlock()
+
+	return Master_state
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
@@ -195,7 +217,7 @@ func reevaluate_Master_state(pu peers.PeerUpdate,
 			fmt.Printf("Already MASTER, still MASTER\n")
 		}
 
-	} else if Master_state { //If we are master we remove this status, since an other master has arrived
+	} else if Check_master_state() { //If we are master we remove this status, since an other master has arrived
 
 		current_master_id = fmt.Sprintf("%d", id_lowest) //Changes master ID
 		fmt.Printf("Removes master state, becomes SLAVE\n")

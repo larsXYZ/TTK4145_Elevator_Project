@@ -50,19 +50,19 @@ func Run(
 		//-----------------Receive order from net
 		case msg := <-delegate_order_rx_chn:
 
-		//Simulates packetloss
-		if (u.PacketLossSim(s.DELEGATE_ORDER_PACKET_LOSS_SIM_CHANCE)) { continue }
+			//Simulates packetloss
+			if (u.PacketLossSim(s.DELEGATE_ORDER_PACKET_LOSS_SIM_CHANCE)) { continue }
 
- 		//Filters out ACK and NACK messages and checks if order is for this elevator
-		if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
+	 		//Filters out ACK and NACK messages and checks if order is for this elevator
+			if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
 
-		//Otherwise we ask elevator if it can execute
-		execution_state := give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, msg.Order)
+			//Otherwise we ask elevator if it can execute
+			execution_state := give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, msg.Order)
 
-		//Sends ACK
-		msg.ACK = execution_state
-		msg.NACK = !execution_state
-		delegate_order_tx_chn <- msg
+			//Sends ACK
+			msg.ACK = execution_state
+			msg.NACK = !execution_state
+			delegate_order_tx_chn <- msg
 
 
 		//-----------------Receive order from netFSM
@@ -79,7 +79,7 @@ func Run(
 
 		//-----------------Receive update from elevator. It has a new order to transmit to master
 	case new_order := <-order_elev_ch_neworder:
-			if  net_fsm.Master_state{
+			if  net_fsm.Check_master_state(){
 				netfsm_order_channel <- d.State_order_message{new_order, "", false}
 			} else {
 				transmit_order_to_master(new_order, new_order_tx_chn, new_order_rx_chn)
@@ -96,7 +96,7 @@ func Run(
 			if (message.ACK) { continue }
 
 			//Send to  net_fsm
-			if ( net_fsm.Master_state){
+			if ( net_fsm.Check_master_state()){
 				netfsm_order_channel <- d.State_order_message{message.Order, "", false}
 				new_order_tx_chn <- d.Network_new_order_message{message.Order,true}
 				fmt.Printf("Order handler: Confirming order\n")
@@ -105,7 +105,7 @@ func Run(
 
 		//-----------------Receive update from elevator. The elevator has finished an order, notify master
 		case finished_order := <-order_elev_ch_finished:
-			if net_fsm.Master_state{
+			if net_fsm.Check_master_state(){
 				netfsm_order_channel <- d.State_order_message{finished_order, "", false}
 			}	else {
 				transmit_order_to_master(finished_order, new_order_tx_chn, new_order_rx_chn)
