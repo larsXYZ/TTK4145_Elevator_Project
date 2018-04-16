@@ -32,10 +32,10 @@ func Run(
 	id =  id_in
 
 	//Set up networking channels
-	delegate_order_tx_chn := make(chan d.Network_delegate_order_message, 100)
-	delegate_order_rx_chn := make(chan d.Network_delegate_order_message, 100)
-	new_order_tx_chn := make(chan d.Network_new_order_message, 100)
-	new_order_rx_chn := make(chan d.Network_new_order_message, 100)
+	delegate_order_tx_chn := make(chan d.Network_delegate_order_message)
+	delegate_order_rx_chn := make(chan d.Network_delegate_order_message)
+	new_order_tx_chn := make(chan d.Network_new_order_message)
+	new_order_rx_chn := make(chan d.Network_new_order_message)
 
 	//Activate bcast library functions
 	go bcast.Transmitter(s.DELEGATE_ORDER_PORT, delegate_order_tx_chn)
@@ -57,7 +57,8 @@ func Run(
 			if msg.ACK || msg.NACK || msg.Id_slave != id { continue }
 
 			//Otherwise we ask elevator if it can execute
-			execution_state := give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, msg.Order)
+			execution_state := false
+			execution_state = give_order_to_local_elevator(order_elev_ch_neworder, order_elev_ch_busypoll, msg.Order)
 
 			//Sends ACK
 			msg.ACK = execution_state
@@ -81,8 +82,10 @@ func Run(
 	case new_order := <-order_elev_ch_neworder:
 			if  net_fsm.Check_master_state(){
 				netfsm_order_channel <- d.State_order_message{new_order, "", false}
-			} else {
+			} else if net_fsm.Get_number_of_peers() > 1{
 				transmit_order_to_master(new_order, new_order_tx_chn, new_order_rx_chn)
+			} else {
+				fmt.Println("Order Handler: Alone on network, no Network-action allowed")
 			}
 
 
