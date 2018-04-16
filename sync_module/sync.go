@@ -144,7 +144,7 @@ func network_sync_handler(tx_chn chan d.Network_sync_message,
 
     fmt.Println("Sync module: State update received, sending ACK\n")
     netfsm_sync_ch_arriving_state <- m.State
-    tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
+    tx_chn <- d.Network_sync_message{d.State{},true, id, m.Sender}
     elev_fsm.Update_hall_lights(m.State.Button_matrix)
   }
 }
