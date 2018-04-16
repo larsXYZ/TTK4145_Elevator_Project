@@ -40,4 +40,4 @@ const ELEV_CAB_TIMEOUT = 1000
 
 //--------------PEERS
 const PEERS_HEARTBEAT_INTERVAL =  15 //[Milliseconds] Delay between each heartbeat sent
-const PEERS_TIMEOUT_INTERVAL = 50 //[Milliseconds] Time until a participating elevator times out
+const PEERS_TIMEOUT_INTERVAL = 100 //[Milliseconds] Time until a participating elevator times out
