@@ -11,7 +11,7 @@ by the teaching team.
 
 ### Module Figure
 
-![Figure](ELEVATOR_SYSTEM.png)
+![Figure](Modules_snipped.png)
 
 ### Module description
 
