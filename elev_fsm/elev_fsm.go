@@ -120,7 +120,6 @@ func Run(
         if next_target != -1{
           _mtx.Lock()
           busystate = true
-          fmt.Println("Elev_fsm: Executing cab order: Floor",next_target)
           go execute_order(d.Order_struct{Floor: next_target},floor_sensors_channel,order_elev_ch_finished,false,interrupt) //Executes cab orders
         }
       }
@@ -158,7 +157,6 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan
     case <- interrupt:   //Checks if a pressed cab order should change target floor
         var next = next_cab_target()
         if next != -1 && next != current_floor && !master_order{
-          fmt.Println("Elev_fsm: Changing target floor",next)
           target_floor = next
         }
       }
@@ -192,7 +190,6 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
     order_elev_ch_finished <- d.Order_struct{current_floor, current_direction == 1, current_direction == -1, true}
     cab_array[current_floor] = false
     elevio.SetButtonLamp(elevio.BT_Cab,current_floor,false)
-    fmt.Println("Elev_fsm: Cab order finished: Floor",current_floor)
   }
 
   //Notify master that elevator has arrived

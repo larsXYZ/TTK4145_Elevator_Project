@@ -12,7 +12,6 @@ import(
   u "./../utilities"
   "strings"
   s "../settings"
-  "../net_fsm"
   "../elev_fsm"
 )
 
@@ -63,7 +62,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
                 netfsm_sync_ch_command chan d.State_sync_message) bool{
 
-  fmt.Printf("Sync module: [Master state: %v] Syncing state: ", net_fsm.Master_state)
+  fmt.Printf("Sync module: [Master state: %v] Syncing state: ", command.State.Button_matrix)
 
   //Converting connected elevator string to list
   PeersList := strings.Split(command.Peers, ",")
@@ -106,6 +105,10 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
           fmt.Printf("X, ")
           resend = true
           timeout_count += 1
+
+        case <-netfsm_sync_ch_command: //There is a newer state to sync, we prioritize it
+          fmt.Printf(": [INTERRUPTED]\n")
+          return false
 
         }
 

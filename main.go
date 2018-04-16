@@ -35,8 +35,8 @@ func main() {
 	fmt.Printf("ELEVATOR ID: %s\n",id)
 
 	//Initializes channels
-	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
-	netfsm_sync_ch_error						:= make(chan bool,100)
+	netfsm_sync_ch_command					:= make(chan d.State_sync_message)
+	netfsm_sync_ch_error						:= make(chan bool)
 
 	netfsm_order_channel						:= make(chan d.State_order_message,100)
 

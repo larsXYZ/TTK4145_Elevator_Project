@@ -74,7 +74,6 @@ func Run(
 
 		//-----------------Answers to hello message
 	case msg := <-fetch_rx_ch:
-			fmt.Println("HELLO MESSAGE RECEIVED")
 			if Check_master_state() && msg.Hello{
 				fetch_tx_ch <- d.Network_fetch_message{State,false}
 			}
@@ -310,6 +309,7 @@ func sync_state(netfsm_sync_ch_command chan d.State_sync_message) { //Syncs stat
 }
 
 func clear_order(order d.Order_struct) { //Updates state when an order has been executed
+
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
 		State.Time_table_delegated_up[order.Floor] = s.ORDER_INACTIVE
