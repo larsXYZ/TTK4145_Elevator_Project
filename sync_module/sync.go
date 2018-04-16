@@ -19,8 +19,8 @@ import(
 var id = ""
 
 //Runs the sync module
-func Run(netfsm_sync_ch_tx_state chan d.State_sync_message,
-	       netfsm_sync_ch_rx_state chan d.State,
+func Run(netfsm_sync_ch_send_state chan d.State_sync_message,
+	       netfsm_sync_ch_arriving_state chan d.State,
          netfsm_sync_ch_error chan bool,
          id_in string){
 
@@ -40,17 +40,17 @@ func Run(netfsm_sync_ch_tx_state chan d.State_sync_message,
 
     //Responds to Network_message
     case sync_message := <-sync_rx_chn:
-      network_sync_handler(sync_tx_chn, sync_rx_chn, netfsm_sync_ch_rx_state, sync_message)
+      network_sync_handler(sync_tx_chn, sync_rx_chn, netfsm_sync_ch_arriving_state, sync_message)
 
     //Synchronizes state
-  case command := <-netfsm_sync_ch_tx_state:
+  case command := <-netfsm_sync_ch_send_state:
 
       if (!command.Sync){
         continue
       }
 
       //Synchronize state, if we fail we request resync
-      if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_tx_state)){
+      if (!sync_state(sync_tx_chn, sync_rx_chn, command, netfsm_sync_ch_send_state)){
         netfsm_sync_ch_error <- true
       }
     }
@@ -62,7 +62,7 @@ func Run(netfsm_sync_ch_tx_state chan d.State_sync_message,
 func sync_state(sync_tx_chn chan d.Network_sync_message,
                 sync_rx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
-                netfsm_sync_ch_tx_state chan d.State_sync_message) bool{
+                netfsm_sync_ch_send_state chan d.State_sync_message) bool{
 
   fmt.Printf("Sync module: Syncing state: " )
 
@@ -108,7 +108,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
           resend = true
           timeout_count += 1
 
-        case <-netfsm_sync_ch_tx_state: //There is a newer state to sync, we prioritize it
+        case <-netfsm_sync_ch_send_state: //There is a newer state to sync, we prioritize it
           fmt.Printf(": [INTERRUPTED]\n")
           return false
         }
@@ -133,7 +133,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
 //Handles received network messages
 func network_sync_handler(tx_chn chan d.Network_sync_message,
                           rx_chn chan d.Network_sync_message,
-                          netfsm_sync_ch_rx_state chan d.State,
+                          netfsm_sync_ch_arriving_state chan d.State,
                           m d.Network_sync_message){
 
 if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
@@ -141,7 +141,7 @@ if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 
     fmt.Println("Sync module: State update received, sending ACK\n")
-    netfsm_sync_ch_rx_state <- m.State
+    netfsm_sync_ch_arriving_state <- m.State
     tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
     elev_fsm.Update_hall_lights(m.State.Button_matrix)
   }

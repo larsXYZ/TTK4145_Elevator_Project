@@ -115,14 +115,15 @@ func Run(
 		//-----------------Receives update from order handler
 		case message := <-netfsm_order_channel:
 
-			if len(current_peers) < 2{ //We should not accept orders if there are fewer than two elevators connected
-				fmt.Printf("Net FSM: Order received, not enough elevators to ensure execution\n")
-				continue
-			}
-
 			if Check_master_state() && !message.Order.Fin { //It is a new order
 
 				if new_order_check(message.Order) { //Checks if this order means we must update State
+
+					if len(current_peers) < 2{ //We should not accept orders if there are fewer than two elevators connected
+						fmt.Printf("Net FSM: Order received, not enough elevators to ensure execution\n")
+						continue
+					}
+
 					add_order(message.Order)
 					update_timetable_received(message.Order)
 					sync_state(netfsm_sync_ch_send_state)
@@ -188,11 +189,7 @@ func reevaluate_Master_state(pu peers.PeerUpdate,
 
 	fmt.Printf("Network FSM: Redetermining master state: ")
 
-	if len(pu.Peers) < 2{ //We need to be slave if we are alone on the network
-		fmt.Printf("Only one elevator on network, disabling master state\n")
-		removeMasterState(timer_chan)
-		return
-	} else if len(pu.Peers) == 2{
+	if len(pu.Peers) == 2{
 		fetch_state(fetch_tx_ch,fetch_rx_ch)
 	}
 
