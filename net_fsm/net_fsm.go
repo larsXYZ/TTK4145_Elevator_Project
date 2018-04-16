@@ -4,7 +4,7 @@ package net_fsm
 //--------------- Receives, synchronizes, and delegates orders. ---------------------------
 //-----------------------------------------------------------------------------------------
 
-//Import packages
+//=======PACKAGES==========
 import (
 	"fmt"
 	d "../datatypes"
@@ -82,6 +82,11 @@ func Run(
 		case pu := <-peers_rx_channel:
 			current_peers = pu.Peers
 			connected_elevator_count = len(pu.Peers)
+
+			if len(pu.Peers) == 2{ //If we encounter a new network we try to prefetch its state
+				fetch_state(fetch_tx_ch,fetch_rx_ch)
+			}
+
 			reevaluate_Master_state(pu, timer_chan,fetch_tx_ch,fetch_rx_ch)
 			if Check_master_state() {
 				sync_state(netfsm_sync_ch_send_state)
@@ -144,7 +149,7 @@ func Run(
 	}
 }
 
-//Enables master state
+//Enables master state, locks mutex to prevent errors
 func enableMasterState(timer_chan chan bool) {
 
 	//Locking mutex
@@ -156,7 +161,7 @@ func enableMasterState(timer_chan chan bool) {
 	fmt.Println("Network FSM: Enables master state")
 }
 
-//Removes master state
+//Removes master state, locks mutex to prevent errors
 func removeMasterState(timer_chan chan bool) {
 
 	//Locking mutex
@@ -168,6 +173,7 @@ func removeMasterState(timer_chan chan bool) {
 	fmt.Println("Network FSM: Removes master state")
 }
 
+//Lets other threads see master state, locks mutex to prevent errors
 func Check_master_state() bool{
 
 	//Locking mutex
@@ -177,6 +183,7 @@ func Check_master_state() bool{
 	return Master_state
 }
 
+//Lets other threads see number of peers
 func Get_number_of_peers() int{
 	return len(current_peers)
 }
@@ -188,10 +195,6 @@ func reevaluate_Master_state(pu peers.PeerUpdate,
 														fetch_rx_ch chan d.Network_fetch_message) {
 
 	fmt.Printf("Network FSM: Redetermining master state: ")
-
-	if len(pu.Peers) == 2{
-		fetch_state(fetch_tx_ch,fetch_rx_ch)
-	}
 
 	update_connected_count(pu) //Updates connected elevator count
 
@@ -218,14 +221,14 @@ func reevaluate_Master_state(pu peers.PeerUpdate,
 	} else { //Do nothing
 		fmt.Printf("Already SLAVE, still SLAVE\n")
 	}
-
 }
 
 func update_connected_count(pu peers.PeerUpdate) { //Updates connected elevator counter
 	connected_elevator_count = len(pu.Peers)
 }
 
-func update_timetable_received(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was received
+//Updates timetable with order, keeps track of the time it was received. This allows orders to be sorted by time when delegating
+func update_timetable_received(order d.Order_struct){
 	time :=  int(time.Now().Unix())
 	if order.Up {
 		State.Time_table_received_up[order.Floor] = time
@@ -234,7 +237,8 @@ func update_timetable_received(order d.Order_struct){ //Updates timetable with o
 	}
 }
 
-func update_timetable_delegation(order d.Order_struct){ //Updates timetable with order, keeps track of the time it was delegated
+//Updates timetable with order, keeps track of the time it was delegated. This allows orders to be timed out
+func update_timetable_delegation(order d.Order_struct){
 	time :=  int(time.Now().Unix())
 	if order.Up {
 		State.Time_table_delegated_up[order.Floor] = time
@@ -243,7 +247,8 @@ func update_timetable_delegation(order d.Order_struct){ //Updates timetable with
 	}
 }
 
-func time_check(order_time int) bool {	//Checks if order time has expired. Then we must send another elevator
+//Checks if order time has expired. Then we must send another elevator to ensure execution of order
+func time_check(order_time int) bool {
 
 	result := int(time.Now().Unix())-order_time > s.ORDER_TIMOUT_DELAY || order_time == s.ORDER_INACTIVE //Order timeouts after 10 seconds
 
@@ -254,7 +259,8 @@ func time_check(order_time int) bool {	//Checks if order time has expired. Then 
 	return result
 }
 
-func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
+//Delegates order to available slaves. Sorts the order by the time they were placed. Oldest orders gets executed first
+func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Order_struct) bool {
 
 	//The direction we iterate through is randomized
 	dir := 1	//1 -> up
@@ -294,7 +300,8 @@ func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Ord
 	return false
 }
 
-func add_order(order d.Order_struct) { //Updates state from new order
+//Updates state from new order
+func add_order(order d.Order_struct) {
 	if order.Up {
 		State.Button_matrix.Up[order.Floor] = true
 	} else if order.Down {
@@ -302,14 +309,16 @@ func add_order(order d.Order_struct) { //Updates state from new order
 	}
 }
 
-func sync_state(netfsm_sync_ch_send_state chan d.State_sync_message) { //Syncs state with slave-elevators
+//Syncs state with slave-elevators
+func sync_state(netfsm_sync_ch_send_state chan d.State_sync_message) {
 
 	//Converting connected elevator list to string for sync
 	current_peers_string :=  u.ListToString(current_peers)
 	netfsm_sync_ch_send_state <- d.State_sync_message{State, current_peers_string, true} //Inform sync module
 }
 
-func clear_order(order d.Order_struct) { //Updates state when an order has been executed
+//Updates state when an order has been executed
+func clear_order(order d.Order_struct) {
 
 	if order.Up{
 		State.Button_matrix.Up[order.Floor] = false
@@ -324,7 +333,8 @@ func clear_order(order d.Order_struct) { //Updates state when an order has been 
 	}
 }
 
-func new_order_check(order d.Order_struct) bool { //Figures out new order means that we must sync state / update state
+//Figures out new order means that we must sync state / update state
+func new_order_check(order d.Order_struct) bool {
 	if order.Up{
 		return !State.Button_matrix.Up[order.Floor]
 	} else if order.Down{
@@ -333,7 +343,8 @@ func new_order_check(order d.Order_struct) bool { //Figures out new order means 
 	return true
 }
 
-func find_order() d.Order_struct{ //Finds next order to delegate, depending on how old the order is
+//Finds next order to delegate, depending on how old the order is
+func find_order() d.Order_struct{
 
 	up := false
 	down := false
@@ -364,7 +375,7 @@ func find_order() d.Order_struct{ //Finds next order to delegate, depending on h
 	return d.Order_struct{floor, up, down, false} //Order to be executed
 }
 
-//Prefetches State from existing network (if there is one)
+//Prefetches State from existing network (if there is one) This should prevent previous master to delete current State if it reconnects
 func fetch_state(fetch_tx_ch chan d.Network_fetch_message, fetch_rx_ch chan d.Network_fetch_message){
 
 	fmt.Printf("Net FSM: Prefetching state ")

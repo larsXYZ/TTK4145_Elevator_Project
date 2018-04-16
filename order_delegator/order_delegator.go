@@ -4,6 +4,7 @@ package order_delegator
 //---------------Sends/Receives orders to/from other elevators-----------------------------
 //-----------------------------------------------------------------------------------------
 
+//=======PACKAGES==========
 import (
 	"fmt"
 	"time"
@@ -14,10 +15,10 @@ import (
 	s "../settings"
 )
 
-//States
+//=======States==========
 var id = ""
 
-//====== FUNCTIONS =======
+//======FUNCTIONS=======
 
 //Starts order delegator system
 func Run(
@@ -118,8 +119,7 @@ func Run(
 	}
 }
 
-//Sends order to slave and ensures ACK
-//Returns true if slave executes
+//Sends order to slave and ensures ACK, Returns true if slave executes
 func send_order(delegate_order_tx_chn chan d.Network_delegate_order_message,
 	delegate_order_rx_chn chan d.Network_delegate_order_message,
 	netfsm_msg d.State_order_message,
@@ -177,7 +177,8 @@ func give_order_to_local_elevator(
 	return !busystate
 }
 
-func transmit_order_to_master(order d.Order_struct, //Transmits new order to master
+//Transmits order via network to master elevator, uses ACK messages to ensure arrival of order
+func transmit_order_to_master(order d.Order_struct,
 										tx_chn chan d.Network_new_order_message,
 										rx_chn chan d.Network_new_order_message){
 

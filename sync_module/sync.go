@@ -4,6 +4,7 @@ package sync
 //---------------Sync information with other elevators-------------------------------------
 //-----------------------------------------------------------------------------------------
 
+//=======PACKAGES==========
 import(
   "./../network_go/bcast"
   d "./../datatypes"
@@ -15,8 +16,10 @@ import(
   "../elev_fsm"
 )
 
-//States
+//======STATES=======
 var id = ""
+
+//======FUNCTIONS=======
 
 //Runs the sync module
 func Run(netfsm_sync_ch_send_state chan d.State_sync_message,
@@ -55,10 +58,9 @@ func Run(netfsm_sync_ch_send_state chan d.State_sync_message,
       }
     }
   }
-
 }
 
-//Synchronizes state with other elevators on network
+//Synchronizes state with other elevators on network. Uses ACK messages to ensure transmission
 func sync_state(sync_tx_chn chan d.Network_sync_message,
                 sync_rx_chn chan d.Network_sync_message,
                 command d.State_sync_message,
@@ -130,13 +132,13 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
   return true
 }
 
-//Handles received network messages
+//Handles received network messages. Tells net_fsm to update its state
 func network_sync_handler(tx_chn chan d.Network_sync_message,
                           rx_chn chan d.Network_sync_message,
                           netfsm_sync_ch_arriving_state chan d.State,
                           m d.Network_sync_message){
 
-if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
+  if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
 
   if m.Sender != id && !m.SyncAck && m.Target == id{ //Ignores messages sent by ourself and ACK messages
 
