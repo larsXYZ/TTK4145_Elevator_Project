@@ -14,6 +14,7 @@ import (
   s "../settings"
 )
 
+//=======States==========
 var numFloors = 4
 var busystate = false   //True when elevator is doing an order
 var current_floor = -1
@@ -87,7 +88,8 @@ func Run(
   for{
     select{
 
-    case button_event := <- buttons: //Reads button inputs
+    //--------Reads button inputs
+    case button_event := <- buttons:
 
       if button_event.Button == elevio.BT_Cab{ //Updates cab_array
         cab_array[button_event.Floor] = true
@@ -99,20 +101,21 @@ func Run(
         order_elev_ch_neworder <- new_order
       }
 
-
-    case <- order_elev_ch_busypoll: //Sends busystate to
+    //--------Sends busystate
+    case <- order_elev_ch_busypoll:
       order_elev_ch_busypoll <- busystate
 
+    //-----Executes received order from master if there exist no cab orders
+    case received_order := <-order_elev_ch_neworder:
 
-    case received_order := <-order_elev_ch_neworder: //Executes received order
-
-      if next_cab_target() == -1{  //Executes order only if there exist no cab orders
+      if next_cab_target() == -1{
         _mtx.Lock()
         busystate = true
         go execute_order(received_order,floor_sensors_channel,order_elev_ch_finished,true,interrupt)
       }
 
-    case <- check_cab: //Checks cab orders
+    //--------Checks if any cab orders exists
+    case <- check_cab:
 
       if busystate == false{
         var next_target = next_cab_target()
@@ -127,6 +130,7 @@ func Run(
   }
 }
 
+//Moves the elevator to a specified target floor
 func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan bool, master_order bool){
 
   if (target_floor == elevio.GetFloor()){ //If we already are at the floor we exit
@@ -178,6 +182,7 @@ func go_to_floor(target_floor int,floor_sensors_channel chan int, interrupt chan
   }
 }
 
+//Executes both internal and external orders
 func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_elev_ch_finished chan d.Order_struct,master_order bool,interrupt chan bool) { //Executes order and stays busy while doing it
 
 
@@ -207,17 +212,16 @@ func execute_order(order d.Order_struct, floor_sensors_channel chan int, order_e
   _mtx.Unlock()
 }
 
-//Open door and wait
+//Opens and closes door
 func door(){
   if motor == false{
     elevio.SetDoorOpenLamp(true)
     time.Sleep(4*time.Second)
     elevio.SetDoorOpenLamp(false)
   }
-
 }
 
-//Updates lights
+//Used when receiving order from master
 func Update_hall_lights(button_matrix d.Button_matrix_struct){
 
   //Up lights
@@ -230,7 +234,7 @@ func Update_hall_lights(button_matrix d.Button_matrix_struct){
   }
 }
 
-//Finds the next target floor for cab orders
+//Finds the most reasonable next target floor for cab orders
 func next_cab_target() int{
 
   if current_direction == elevio.MD_Up{
