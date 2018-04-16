@@ -11,7 +11,7 @@ by the teaching team.
 
 ### Module Figure
 
-![Figure](Modules_snipped.PNG)
+![Figure](Modules_snipped.PNG) 
 
 ### Module description
 
