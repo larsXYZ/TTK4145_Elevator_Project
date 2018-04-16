@@ -38,8 +38,6 @@ func main() {
 	netfsm_sync_ch_command					:= make(chan d.State_sync_message,100)
 	netfsm_sync_ch_error						:= make(chan bool,100)
 
-	netfsm_elev_light_update				:= make(chan d.Button_matrix_struct,100)
-
 	netfsm_order_channel						:= make(chan d.State_order_message,100)
 
 	order_elev_ch_busypoll					:= make(chan bool ,100)
@@ -50,7 +48,6 @@ func main() {
 
 	//Runs elev fsm
 	go elev_fsm.Run(
-		netfsm_elev_light_update,
 		order_elev_ch_busypoll,
 		order_elev_ch_neworder,
 		order_elev_ch_finished,
@@ -72,7 +69,6 @@ func main() {
 
 	//Runs net fsm
 	go net_fsm.Run(
-		netfsm_elev_light_update,
 		netfsm_sync_ch_command,
 		netfsm_sync_ch_error,
 		netfsm_order_channel,

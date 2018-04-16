@@ -50,7 +50,6 @@ func init_floor_finder(floor_sensors_channel chan int) int {
 
 //Runs elevator interface logic
 func Run(
-  netfsm_elev_light_update chan d.Button_matrix_struct,
   order_elev_ch_busypoll chan bool,
 	order_elev_ch_neworder chan d.Order_struct,
 	order_elev_ch_finished chan d.Order_struct,
@@ -99,10 +98,6 @@ func Run(
         new_order := d.Order_struct{button_event.Floor,button_event.Button == 0,button_event.Button == 1,false}
         order_elev_ch_neworder <- new_order
       }
-
-
-    case Button_matrix := <- netfsm_elev_light_update:
-      update_hall_lights(Button_matrix)
 
 
     case <- order_elev_ch_busypoll: //Sends busystate to
@@ -226,7 +221,7 @@ func door(){
 }
 
 //Updates lights
-func update_hall_lights(button_matrix d.Button_matrix_struct){
+func Update_hall_lights(button_matrix d.Button_matrix_struct){
 
   //Up lights
   for floor := 0; floor < numFloors; floor++{

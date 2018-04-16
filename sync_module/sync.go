@@ -13,6 +13,7 @@ import(
   "strings"
   s "../settings"
   "../net_fsm"
+  "../elev_fsm"
 )
 
 //States
@@ -121,6 +122,7 @@ func sync_state(sync_tx_chn chan d.Network_sync_message,
   }
 
   fmt.Printf(": [COMPLETED]\n")
+  elev_fsm.Update_hall_lights(command.State.Button_matrix)
   return true
 
 }
@@ -138,5 +140,6 @@ if u.PacketLossSim(s.SYNC_PACKET_LOSS_SIM_CHANCE){ return }
     fmt.Println("Sync module: State update received, sending ACK\n")
     netfsm_sync_ch_command <- d.State_sync_message{m.State,"", false}
     tx_chn <- d.Network_sync_message{d.State_init(),true, id, m.Sender}
+    elev_fsm.Update_hall_lights(m.State.Button_matrix)
   }
 }
