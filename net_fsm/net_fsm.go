@@ -14,6 +14,7 @@ import (
 	s "../settings"
 	u "../utilities"
 	"time"
+	"math/rand"
 )
 
 //=======States==========
@@ -240,21 +241,41 @@ func time_check(order_time int) bool {	//Checks if order time has expired. Then 
 
 func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
 
-	
+	//The direction we iterate through is randomized
+	dir := 1	//1 -> up
+	if 50 < rand.Intn(100){
+		dir = -1 //-1 -> down
+	}
 
-	for i := 0; i < len(current_peers); i++ {
+	if (dir == 1){ //We iterate up
+		for i := 0; i < len(current_peers); i += dir {
+			//Notify order order_handler
+			message := d.State_order_message{order, current_peers[i], false}
+			netfsm_order_channel <- message
 
-		//Notify order order_handler
-		message := d.State_order_message{order, current_peers[i], false}
-		netfsm_order_channel <- message
+			select {
+			case response := <-netfsm_order_channel: //Receives order update from order handler
+				if response.ACK { //If we ACK the order has been executed
+					return true
+				}
+			}
+		}
+	} else if (dir == -1){ //We iterate down
+		for i := len(current_peers)-1; i >= 0; i += dir {
+			//Notify order order_handler
+			message := d.State_order_message{order, current_peers[i], false}
+			netfsm_order_channel <- message
 
-		select {
-		case response := <-netfsm_order_channel: //Receives order update from order handler
-			if response.ACK { //If we ACK the order has been executed
-				return true
+			select {
+			case response := <-netfsm_order_channel: //Receives order update from order handler
+				if response.ACK { //If we ACK the order has been executed
+					return true
+				}
 			}
 		}
 	}
+
+
 	return false
 }
 
