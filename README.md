@@ -12,7 +12,7 @@ by the teaching team.
 ### Module Figure
 
 ![Figure](Modules_snipped.PNG) 
-
+ 
 ### Module description
 
 #### NET FSM
