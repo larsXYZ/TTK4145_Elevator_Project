@@ -13,8 +13,8 @@ const PEERS_PORT = 14592      //Port used for peers system
 const DELEGATE_ORDER_DELAY = 1000 //[Milliseconds] The between each time the master will (try to) delegate an order
 
 const FETCH_PORT = 14005          //Port used for prefetch state system
-const FETCH_TIMEOUT_DELAY = 50    //[Milliseconds] Time until packet is regarded as lost and new packet sent
-const FETCH_MAX_TIMEOUT_COUNT = 5 //Number of times prefetch_state() will try to resend package
+const FETCH_TIMEOUT_DELAY = 100    //[Milliseconds] Time until fetch_state() will wait for response to hello message
+const FETCH_MAX_TIMEOUT_COUNT = 5 //Number of times fetch_state() will try to resend package
 
 //const NETWORK_HEARTBEAT_PORT = 14005 //Port used for network hearthbeat signal
 //const NETWORK_HEARTBEAT_DELAY =  15 //[Milliseconds] Time between each heartbeat signal

@@ -35,8 +35,8 @@ type Network_delegate_order_message struct { //Used to send and receive orders b
 }
 
 type Network_new_order_message struct { //Used to communicate new orders between orderhandlers, implements ACK's
-	Order Order_struct
-	ACK		bool
+	Order Order_struct		//The order struct sent over internet
+	ACK		bool						//Confirming that master has received it
 }
 
 type Network_fetch_message struct {

@@ -77,8 +77,9 @@ func Run(
 
 		//-----------------Receive update on connected elevators
 		case pu := <-peers_rx_channel:
-			reevaluate_Master_state(pu, timer_chan)
 			current_peers = pu.Peers
+			connected_elevator_count = len(pu.Peers)
+			reevaluate_Master_state(pu, timer_chan,fetch_tx_ch,fetch_rx_ch)
 			if Master_state {
 				sync_state(netfsm_sync_ch_command)
 			}
@@ -111,6 +112,11 @@ func Run(
 
 		//-----------------Receives update from order handler
 		case message := <-netfsm_order_channel:
+
+			if len(current_peers) < 2{ //We should not accept orders if there are fewer than two elevators connected
+				fmt.Printf("Net FSM: Order received, not enough elevators to ensure execution\n")
+				continue
+			}
 
 			if Master_state && !message.Order.Fin { //It is a new order
 
@@ -156,9 +162,20 @@ func removeMasterState(timer_chan chan bool) {
 }
 
 //Determines current master from peerupdate, aka elevator with lowest id. Fills in current_master variable
-func reevaluate_Master_state(pu peers.PeerUpdate, timer_chan chan bool) {
+func reevaluate_Master_state(pu peers.PeerUpdate,
+														timer_chan chan bool,
+														fetch_tx_ch chan d.Network_fetch_message,
+														fetch_rx_ch chan d.Network_fetch_message) {
 
 	fmt.Printf("Network FSM: Redetermining master state: ")
+
+	if len(pu.Peers) < 2{ //We need to be slave if we are alone on the network
+		fmt.Printf("Only one elevator on network, disabling master state\n")
+		removeMasterState(timer_chan)
+		return
+	} else if len(pu.Peers) == 2{
+		fetch_state(fetch_tx_ch,fetch_rx_ch)
+	}
 
 	update_connected_count(pu) //Updates connected elevator count
 
@@ -222,6 +239,8 @@ func time_check(order_time int) bool {	//Checks if order time has expired. Then 
 }
 
 func delegate_order(netfsm_order_channel chan d.State_order_message, order d.Order_struct) bool { //Delegates order to available slaves
+
+	
 
 	for i := 0; i < len(current_peers); i++ {
 
